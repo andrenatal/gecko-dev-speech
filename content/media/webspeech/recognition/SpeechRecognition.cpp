@@ -23,6 +23,13 @@
 
 #include <algorithm>
 
+
+extern “C”
+{
+  #include <pocketsphinx/pocketsphinx.h>
+  #include <sphinxbase/sphinx_config.h>
+}
+
 namespace mozilla {
 namespace dom {
 
