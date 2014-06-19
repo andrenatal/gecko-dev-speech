@@ -24,7 +24,7 @@
 #include <algorithm>
 
 
-extern “C”
+extern "C"
 {
   #include <pocketsphinx/pocketsphinx.h>
   #include <sphinxbase/sphinx_config.h>
