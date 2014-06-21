@@ -12,6 +12,7 @@ XPIDL_SOURCES = [
 ]
 
 EXPORTS.mozilla.dom += [
+    'PocketSphinxSpeechRecognitionService.h',
     'SpeechGrammar.h',
     'SpeechGrammarList.h',
     'SpeechRecognition.h',
@@ -19,13 +20,14 @@ EXPORTS.mozilla.dom += [
     'SpeechRecognitionResult.h',
     'SpeechRecognitionResultList.h',
     'SpeechStreamListener.h',
-    'test/FakeSpeechRecognitionService.h',
+    'test/FakeSpeechRecognitionService.h'
 ]
 
 UNIFIED_SOURCES += [
     'endpointer.cc',
     'energy_endpointer.cc',
     'energy_endpointer_params.cc',
+    'PocketSphinxSpeechRecognitionService.cpp',    
     'SpeechGrammar.cpp',
     'SpeechGrammarList.cpp',
     'SpeechRecognition.cpp',
@@ -33,7 +35,7 @@ UNIFIED_SOURCES += [
     'SpeechRecognitionResult.cpp',
     'SpeechRecognitionResultList.cpp',
     'SpeechStreamListener.cpp',
-    'test/FakeSpeechRecognitionService.cpp',
+    'test/FakeSpeechRecognitionService.cpp'    
 ]
 
 LOCAL_INCLUDES += [

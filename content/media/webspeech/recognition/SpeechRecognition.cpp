@@ -24,17 +24,13 @@
 #include <algorithm>
 
 
-extern "C"
-{
-  #include <pocketsphinx/pocketsphinx.h>
-  #include <sphinxbase/sphinx_config.h>
-}
+
 
 namespace mozilla {
 namespace dom {
 
 #define PREFERENCE_DEFAULT_RECOGNITION_SERVICE "media.webspeech.service.default"
-#define DEFAULT_RECOGNITION_SERVICE "google"
+#define DEFAULT_RECOGNITION_SERVICE "pocketsphinx"
 
 #define PREFERENCE_ENDPOINTER_SILENCE_LENGTH "media.webspeech.silence_length"
 #define PREFERENCE_ENDPOINTER_LONG_SILENCE_LENGTH "media.webspeech.long_silence_length"
