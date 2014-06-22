@@ -97,6 +97,7 @@
 
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/FakeSpeechRecognitionService.h"
+#include "mozilla/dom/PocketSphinxSpeechRecognitionService.h"
 #include "mozilla/dom/nsSynthVoiceRegistry.h"
 #endif
 
@@ -596,6 +597,7 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(DataStoreService, DataStoreService::Get
 
 #ifdef MOZ_WEBSPEECH
 NS_GENERIC_FACTORY_CONSTRUCTOR(FakeSpeechRecognitionService)
+NS_GENERIC_FACTORY_CONSTRUCTOR(PocketSphinxSpeechRecognitionService)
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCSPContext)
@@ -787,6 +789,7 @@ NS_DEFINE_NAMED_CID(NS_GAMEPAD_TEST_CID);
 #endif
 #ifdef MOZ_WEBSPEECH
 NS_DEFINE_NAMED_CID(NS_FAKE_SPEECH_RECOGNITION_SERVICE_CID);
+NS_DEFINE_NAMED_CID(NS_POCKETSPHINX_SPEECH_RECOGNITION_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SYNTHVOICEREGISTRY_CID);
 #endif
 
@@ -1034,6 +1037,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_FOCUSMANAGER_CID, false, nullptr, CreateFocusManager },
 #ifdef MOZ_WEBSPEECH
   { &kNS_FAKE_SPEECH_RECOGNITION_SERVICE_CID, false, nullptr, FakeSpeechRecognitionServiceConstructor },
+  { &kNS_POCKETSPHINX_SPEECH_RECOGNITION_SERVICE_CID, false, nullptr, PocketSphinxSpeechRecognitionServiceConstructor },
   { &kNS_SYNTHVOICEREGISTRY_CID, true, nullptr, nsSynthVoiceRegistryConstructor },
 #endif
   { &kCSPSERVICE_CID, false, nullptr, CSPServiceConstructor },
@@ -1189,6 +1193,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/focus-manager;1", &kNS_FOCUSMANAGER_CID },
 #ifdef MOZ_WEBSPEECH
   { NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX "fake", &kNS_FAKE_SPEECH_RECOGNITION_SERVICE_CID },
+  { NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX "pocketsphinx", &kNS_POCKETSPHINX_SPEECH_RECOGNITION_SERVICE_CID },
   { NS_SYNTHVOICEREGISTRY_CONTRACTID, &kNS_SYNTHVOICEREGISTRY_CID },
 #endif
   { CSPSERVICE_CONTRACTID, &kCSPSERVICE_CID },

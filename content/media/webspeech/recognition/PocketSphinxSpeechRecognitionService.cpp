@@ -26,18 +26,18 @@ namespace mozilla {
 
 using namespace dom;
 
-NS_IMPL_ISUPPORTS(PocketSphinxRecognitionService, nsISpeechRecognitionService, nsIObserver)
+NS_IMPL_ISUPPORTS(PocketSphinxSpeechRecognitionService, nsISpeechRecognitionService, nsIObserver)
 
-PocketSphinxRecognitionService::PocketSphinxRecognitionService()
+PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
 {
 }
 
-PocketSphinxRecognitionService::~PocketSphinxRecognitionService()
+PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 {
 }
 
 NS_IMETHODIMP
-PocketSphinxRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
+PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
 {
   mRecognition = aSpeechRecognition;
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -57,7 +57,7 @@ PocketSphinxRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRec
 }
 
 NS_IMETHODIMP
-PocketSphinxRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
+PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
 {
 
   /*
@@ -85,19 +85,19 @@ PocketSphinxRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
 }
 
 NS_IMETHODIMP
-PocketSphinxRecognitionService::SoundEnd()
+PocketSphinxSpeechRecognitionService::SoundEnd()
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PocketSphinxRecognitionService::Abort()
+PocketSphinxSpeechRecognitionService::Abort()
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PocketSphinxRecognitionService::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
+PocketSphinxSpeechRecognitionService::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
 {
   MOZ_ASSERT(mRecognition->mTestConfig.mFakeRecognitionService,
              "Got request to fake recognition service event, but "
@@ -130,8 +130,7 @@ PocketSphinxRecognitionService::Observe(nsISupports* aSubject, const char* aTopi
   return NS_OK;
 }
 
-SpeechRecognitionResultList*
-PocketSphinxRecognitionService::BuildMockResultList()
+SpeechRecognitionResultList* PocketSphinxSpeechRecognitionService::BuildMockResultList()
 {
   SpeechRecognitionResultList* resultList = new SpeechRecognitionResultList(mRecognition);
   SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);

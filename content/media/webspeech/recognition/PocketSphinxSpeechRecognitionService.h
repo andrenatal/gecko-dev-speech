@@ -23,11 +23,11 @@ namespace mozilla {
 #include "nsISpeechRecognitionService.h"
 
 #define NS_POCKETSPHINX_SPEECH_RECOGNITION_SERVICE_CID \
-  {0x48c345e7, 0x9929, 0x4f9a, {0xa5, 0x63, 0xf4, 0x78, 0x22, 0x2d, 0xab, 0xcd}};
+{ 0x0ff5ce56, 0x5b09, 0x4db8, { 0xad, 0xc6, 0x82, 0x66, 0xaf, 0x95, 0xf8, 0x64 } };
 
 namespace mozilla {
 
-class PocketSphinxRecognitionService : public nsISpeechRecognitionService,
+class PocketSphinxSpeechRecognitionService : public nsISpeechRecognitionService,
                                      public nsIObserver
 {
 public:
@@ -35,10 +35,10 @@ public:
   NS_DECL_NSISPEECHRECOGNITIONSERVICE
   NS_DECL_NSIOBSERVER
 
-  PocketSphinxRecognitionService();
+  PocketSphinxSpeechRecognitionService();
 
 private:
-  virtual ~PocketSphinxRecognitionService();
+  virtual ~PocketSphinxSpeechRecognitionService();
 
   WeakPtr<dom::SpeechRecognition> mRecognition;
   dom::SpeechRecognitionResultList* BuildMockResultList();
