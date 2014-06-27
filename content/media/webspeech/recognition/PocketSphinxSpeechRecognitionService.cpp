@@ -83,21 +83,10 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
   AudioSegment::ChunkIterator iterator(*aAudioSegment);
 
 
-  spx_uint32_t i;
-  short *in;
-  short *out;
-  float *fin, *fout;
-  int count = 0;
-
-
-
   while (!iterator.IsEnded()) {
     NS_WARNING("==== START ITERATING === ");
 
     const int16_t* audio_data = static_cast<const int16_t*>(iterator->mChannelData[0]);
-
-    //NS_WARNING("==== DOWNSAMPLING TO 8KHZ  === ");
-    //speex_resampler_process_init(st, 0, fin, iterator->mDuration, fout, &out_len);
 
     fwrite(audio_data,sizeof(int16_t) , iterator->mDuration , _file);
 
@@ -109,6 +98,15 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
   fclose(_file);
   NS_WARNING("==== FILE CLOSED === ");
 
+
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+PocketSphinxSpeechRecognitionService::SoundEnd()
+{
+  NS_WARNING("==== SOUND END. DECODING === ");
 
   /*
 
@@ -129,14 +127,6 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
             fclose(_file);
    */
 
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-PocketSphinxSpeechRecognitionService::SoundEnd()
-{
-  NS_WARNING("==== SOUND END === ");
 
   return NS_OK;
 }
