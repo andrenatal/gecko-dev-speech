@@ -60,9 +60,58 @@ NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
 {
 
+  NS_WARNING("==== RESAMPLING CHUNKS === ");
+  int channels = aAudioSegment->ChannelCount();
+
+  SpeexResamplerState * state = speex_resampler_init(channels,
+                                                    44100,
+                                                    16000,
+                                                    SPEEX_RESAMPLER_QUALITY_VOIP,
+                                                    nullptr);
+
+  if (!state) {
+      NS_WARNING("==== STATE FAILED === ");
+      }
+
+   aAudioSegment->ResampleChunks(state);
+
+  NS_WARNING("==== PROCESSING AUDIO SEGMENT . OPENING FILE === ");
+  FILE *_file = fopen("/home/andre/temp.raw", "a");
+
+  NS_WARNING("==== PROCESSING AUDIO SEGMENT . FILE OPENED === ");
+
+  AudioSegment::ChunkIterator iterator(*aAudioSegment);
+
+
+  spx_uint32_t i;
+  short *in;
+  short *out;
+  float *fin, *fout;
+  int count = 0;
+
+
+
+  while (!iterator.IsEnded()) {
+    NS_WARNING("==== START ITERATING === ");
+
+    const int16_t* audio_data = static_cast<const int16_t*>(iterator->mChannelData[0]);
+
+    //NS_WARNING("==== DOWNSAMPLING TO 8KHZ  === ");
+    //speex_resampler_process_init(st, 0, fin, iterator->mDuration, fout, &out_len);
+
+    fwrite(audio_data,sizeof(int16_t) , iterator->mDuration , _file);
+
+    NS_WARNING("==== END ITERATING === ");
+    iterator.Next();
+  }
+
+
+  fclose(_file);
+  NS_WARNING("==== FILE CLOSED === ");
+
+
   /*
 
-            FILE *_file = fopen(dtdepois, "rb");
             char const *hyp, *uttid;
             int32 score;
             int rv = ps_decode_raw(ps, _file, dtdepois, -1);
@@ -87,6 +136,8 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::SoundEnd()
 {
+  NS_WARNING("==== SOUND END === ");
+
   return NS_OK;
 }
 
