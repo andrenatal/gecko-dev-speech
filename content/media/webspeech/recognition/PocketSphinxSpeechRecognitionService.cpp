@@ -65,8 +65,8 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
 
   SpeexResamplerState * state = speex_resampler_init(channels,
                                                     44100,
-                                                    16000,
-                                                    SPEEX_RESAMPLER_QUALITY_VOIP,
+                                                    8000,
+                                                    SPEEX_RESAMPLER_QUALITY_MIN,
                                                     nullptr);
 
   if (!state) {
