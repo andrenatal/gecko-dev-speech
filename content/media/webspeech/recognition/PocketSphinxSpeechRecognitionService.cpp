@@ -39,6 +39,7 @@ PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
 {
+  mSpeexState = NULL;
   mRecognition = aSpeechRecognition;
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   obs->AddObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC, false);
@@ -59,30 +60,21 @@ PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpe
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
 {
+  if (!mSpeexState) {
+      mSpeexState = speex_resampler_init(1,  44100, 8000,  SPEEX_RESAMPLER_QUALITY_MIN,  nullptr);
+      NS_WARNING("==== STATE CREATED === ");
+  }
+  else
+  {
+    NS_WARNING("==== STATE NOT CREATED === ");
+  }
 
   NS_WARNING("==== RESAMPLING CHUNKS === ");
-  int channels = aAudioSegment->ChannelCount();
+  aAudioSegment->ResampleChunks(mSpeexState);
 
-  SpeexResamplerState * state = speex_resampler_init(channels,
-                                                    44100,
-                                                    8000,
-                                                    SPEEX_RESAMPLER_QUALITY_MIN,
-                                                    nullptr);
-
-  if (!state) {
-      NS_WARNING("==== STATE FAILED === ");
-      }
-
-   aAudioSegment->ResampleChunks(state);
-
-  NS_WARNING("==== PROCESSING AUDIO SEGMENT . OPENING FILE === ");
   FILE *_file = fopen("/home/andre/temp.raw", "a");
 
-  NS_WARNING("==== PROCESSING AUDIO SEGMENT . FILE OPENED === ");
-
   AudioSegment::ChunkIterator iterator(*aAudioSegment);
-
-
   while (!iterator.IsEnded()) {
     NS_WARNING("==== START ITERATING === ");
 
@@ -96,17 +88,19 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
 
 
   fclose(_file);
-  NS_WARNING("==== FILE CLOSED === ");
-
-
-
   return NS_OK;
 }
 
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::SoundEnd()
 {
-  NS_WARNING("==== SOUND END. DECODING === ");
+
+  NS_WARNING("==== DESTROYING SPEEX STATE ==== ");
+
+  speex_resampler_destroy(mSpeexState);
+  mSpeexState= NULL;
+
+  NS_WARNING("==== SOUNDEND() DECODING SPEECH === ");
 
   /*
 

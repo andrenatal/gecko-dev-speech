@@ -9,6 +9,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
+#include "speex/speex_resampler.h"
 
 // nsISpeechRecognitionService needs these declarations
 namespace mozilla {
@@ -42,6 +43,7 @@ private:
 
   WeakPtr<dom::SpeechRecognition> mRecognition;
   dom::SpeechRecognitionResultList* BuildMockResultList();
+  SpeexResamplerState *mSpeexState;
 };
 
 } // namespace mozilla
