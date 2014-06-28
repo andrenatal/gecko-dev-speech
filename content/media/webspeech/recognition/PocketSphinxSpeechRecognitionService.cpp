@@ -30,29 +30,40 @@ NS_IMPL_ISUPPORTS(PocketSphinxSpeechRecognitionService, nsISpeechRecognitionServ
 
 PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
 {
+  NS_WARNING("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === ");
+
+  cmd_ln_t *config = cmd_ln_init(NULL, ps_args(), TRUE,
+             "-hmm", "/usr/local/src/mozilla/models/hub4wsj_sc_8k", // acoustic model
+             "-jsgf", "/usr/local/src/mozilla/models/lm/hello.jsgf", // initial grammar
+             "-dict", "/usr/local/src/mozilla/models/dict/cmu07a.dic", // point to yours
+             NULL);
+   if (config == NULL)
+     NS_WARNING("ERROR CREATING PSCONFIG");
+
+   ps_decoder_t * ps = ps_init(config);
+   if (ps == NULL)
+     NS_WARNING("ERROR CREATING PSDECODER");
+
 }
 
 PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 {
 }
 
+// CALL START IN JS FALLS HERE
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
 {
   mSpeexState = NULL;
+
+  NS_WARNING("==== PocketSphinxSpeechRecognitionService::Initialize  === ");
+
   mRecognition = aSpeechRecognition;
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   obs->AddObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC, false);
   obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
 
-  cmd_ln_t *config = cmd_ln_init(NULL, ps_args(), TRUE,
-             "-hmm", "/var/modelsps/hmm/hub4wsj_sc_8k/", // point to yours
-             "-jsgf", "/var/www/speechrtc/voiceserver/gramjsgf.jsgf", // point to yours
-             "-dict", "/usr/local/share/pocketsphinx/model/lm/en_US/cmu07a.dic", // point to yours
-             NULL);
-     if (config == NULL) NS_WARNING("ERROR CREATING PSCONFIG");
-     ps_decoder_t * ps = ps_init(config);
-     if (ps == NULL) NS_WARNING("ERROR CREATING PSDECODER");
+
 
   return NS_OK;
 }
@@ -63,6 +74,9 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
   if (!mSpeexState) {
       mSpeexState = speex_resampler_init(1,  44100, 8000,  SPEEX_RESAMPLER_QUALITY_MIN,  nullptr);
       NS_WARNING("==== STATE CREATED === ");
+
+      _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "w");
+
   }
   else
   {
@@ -72,7 +86,6 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
   NS_WARNING("==== RESAMPLING CHUNKS === ");
   aAudioSegment->ResampleChunks(mSpeexState);
 
-  FILE *_file = fopen("/home/andre/temp.raw", "a");
 
   AudioSegment::ChunkIterator iterator(*aAudioSegment);
   while (!iterator.IsEnded()) {
@@ -87,7 +100,6 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
   }
 
 
-  fclose(_file);
   return NS_OK;
 }
 
@@ -96,9 +108,11 @@ PocketSphinxSpeechRecognitionService::SoundEnd()
 {
 
   NS_WARNING("==== DESTROYING SPEEX STATE ==== ");
-
-  speex_resampler_destroy(mSpeexState);
+    speex_resampler_destroy(mSpeexState);
   mSpeexState= NULL;
+
+  NS_WARNING("==== CLOSE FILE === ");
+  fclose(_file);
 
   NS_WARNING("==== SOUNDEND() DECODING SPEECH === ");
 

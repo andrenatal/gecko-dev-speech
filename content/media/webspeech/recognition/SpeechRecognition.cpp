@@ -91,6 +91,18 @@ SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
   mEndpointer.set_long_speech_length(
       Preferences::GetInt(PREFERENCE_ENDPOINTER_SILENCE_LENGTH, 3 * 1000000));
   Reset();
+
+
+  NS_WARNING("==== CREATED SpeechRecognition() ... === ");
+
+
+  nsAutoCString speechRecognitionServiceCID;
+  GetRecognitionServiceCID(speechRecognitionServiceCID);
+
+  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+
 }
 
 bool
@@ -696,12 +708,9 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
     return;
   }
 
-  nsAutoCString speechRecognitionServiceCID;
-  GetRecognitionServiceCID(speechRecognitionServiceCID);
 
-  nsresult rv;
-  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_WARNING("==== STARTING SpeechRecognition() ... === ");
+
 
   rv = mRecognitionService->Initialize(this);
   NS_ENSURE_SUCCESS_VOID(rv);

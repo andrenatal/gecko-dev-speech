@@ -247,6 +247,8 @@ private:
   // samples before feeding it to mEndpointer
   nsRefPtr<SharedBuffer> mAudioSamplesBuffer;
   uint32_t mBufferedSamples;
+  nsresult rv;
+
 
   nsCOMPtr<nsITimer> mSpeechDetectionTimer;
   bool mAborted;
@@ -275,6 +277,7 @@ public:
   AudioSegment* mAudioSegment;
   nsRefPtr<SpeechRecognitionResultList> mRecognitionResultList; // TODO: make this a session being passed which also has index and stuff
   nsRefPtr<SpeechRecognitionError> mError;
+
 
   friend class SpeechRecognition;
 private:

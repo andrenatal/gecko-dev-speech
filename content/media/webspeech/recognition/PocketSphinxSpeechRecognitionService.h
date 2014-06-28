@@ -44,6 +44,7 @@ private:
   WeakPtr<dom::SpeechRecognition> mRecognition;
   dom::SpeechRecognitionResultList* BuildMockResultList();
   SpeexResamplerState *mSpeexState;
+  FILE *_file;
 };
 
 } // namespace mozilla
