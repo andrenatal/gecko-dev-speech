@@ -32,7 +32,7 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
 {
   NS_WARNING("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === ");
 
-  cmd_ln_t *config = cmd_ln_init(NULL, ps_args(), TRUE,
+  config = cmd_ln_init(NULL, ps_args(), TRUE,
              "-hmm", "/usr/local/src/mozilla/models/hub4wsj_sc_8k", // acoustic model
              "-jsgf", "/usr/local/src/mozilla/models/lm/hello.jsgf", // initial grammar
              "-dict", "/usr/local/src/mozilla/models/dict/cmu07a.dic", // point to yours
@@ -40,7 +40,7 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
    if (config == NULL)
      NS_WARNING("ERROR CREATING PSCONFIG");
 
-   ps_decoder_t * ps = ps_init(config);
+   ps = ps_init(config);
    if (ps == NULL)
      NS_WARNING("ERROR CREATING PSDECODER");
 
@@ -108,33 +108,33 @@ PocketSphinxSpeechRecognitionService::SoundEnd()
 {
 
   NS_WARNING("==== DESTROYING SPEEX STATE ==== ");
-    speex_resampler_destroy(mSpeexState);
+
+  speex_resampler_destroy(mSpeexState);
   mSpeexState= NULL;
-
-  NS_WARNING("==== CLOSE FILE === ");
-  fclose(_file);
-
   NS_WARNING("==== SOUNDEND() DECODING SPEECH === ");
 
-  /*
+  // TRY TO CLOSE LATER
+  fclose(_file);
+  _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "r");
 
-            char const *hyp, *uttid;
-            int32 score;
-            int rv = ps_decode_raw(ps, _file, dtdepois, -1);
-            if (rv < 0) puts("error ps_decode_raw");
-            hyp = ps_get_hyp(ps, &score, &uttid);
+  char const *hyp, *uttid;
+  int32 score;
+  int _psrv = ps_decode_raw(ps, _file, NULL, -1);
+  if (_psrv < 0)
+  {
+    NS_WARNING("ERROR ps_decode_raw");
+  }
 
-            if (hyp == NULL) {
-                puts("Error hyp()");
-                write(sock, "ERR", strlen("ERR"));
-            } else {
-                printf("Recognized: %s\n", hyp);
-                // envia final hypothesis
-                write(sock, hyp, strlen(hyp));
-            }
-            fclose(_file);
-   */
+  hyp = ps_get_hyp(ps, &score, &uttid);
 
+  if (hyp == NULL) {
+    NS_WARNING("ERROR hyp()");
+  } else {
+    NS_WARNING("OK hyp(): ");
+    NS_WARNING(hyp);
+  }
+
+  fclose(_file);
 
   return NS_OK;
 }

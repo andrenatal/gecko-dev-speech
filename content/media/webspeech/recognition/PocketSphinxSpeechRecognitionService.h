@@ -11,6 +11,13 @@
 #include "nsIObserver.h"
 #include "speex/speex_resampler.h"
 
+
+extern "C"
+{
+  #include <pocketsphinx/pocketsphinx.h>
+  #include <sphinxbase/sphinx_config.h>
+}
+
 // nsISpeechRecognitionService needs these declarations
 namespace mozilla {
   class AudioSegment;
@@ -45,6 +52,9 @@ private:
   dom::SpeechRecognitionResultList* BuildMockResultList();
   SpeexResamplerState *mSpeexState;
   FILE *_file;
+  ps_decoder_t * ps;
+  cmd_ln_t *config;
+
 };
 
 } // namespace mozilla
