@@ -48,6 +48,9 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
 
 PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 {
+  config = NULL;
+  ps = NULL;
+  mSpeexState = NULL;
 }
 
 // CALL START IN JS FALLS HERE
@@ -72,7 +75,7 @@ NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
 {
   if (!mSpeexState) {
-      mSpeexState = speex_resampler_init(1,  44100, 8000,  SPEEX_RESAMPLER_QUALITY_MIN,  nullptr);
+      mSpeexState = speex_resampler_init(1,  44100, 8000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
       NS_WARNING("==== STATE CREATED === ");
 
       _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "w");
@@ -107,34 +110,61 @@ NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::SoundEnd()
 {
 
-  NS_WARNING("==== DESTROYING SPEEX STATE ==== ");
+
+  // Declare javascript result events
+  nsRefPtr<SpeechEvent> event =
+    new SpeechEvent(mRecognition,
+                    SpeechRecognition::EVENT_RECOGNITIONSERVICE_FINAL_RESULT);
+  SpeechRecognitionResultList* resultList = new SpeechRecognitionResultList(mRecognition);
+  SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);
+  SpeechRecognitionAlternative* alternative = new SpeechRecognitionAlternative(mRecognition);
+  nsString hypoValue;
+
+
+  NS_WARNING("==== SOUNDEND() DESTROYING SPEEX STATE ==== ");
 
   speex_resampler_destroy(mSpeexState);
   mSpeexState= NULL;
-  NS_WARNING("==== SOUNDEND() DECODING SPEECH === ");
 
-  // TRY TO CLOSE LATER
+  NS_WARNING("==== SOUNDEND() DECODING SPEECH. OPENING FILE === ");
+
+  // TODO : TRY TO KEEP OPEN AND ONLY CLOSE LATER
   fclose(_file);
   _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "r");
 
-  char const *hyp, *uttid;
+  NS_WARNING("==== SOUNDEND() DECODING RAW === ");
+  const char *hyp, *uttid;
   int32 score;
   int _psrv = ps_decode_raw(ps, _file, NULL, -1);
   if (_psrv < 0)
   {
     NS_WARNING("ERROR ps_decode_raw");
   }
+  fclose(_file);
 
+  NS_WARNING("==== SOUNDEND() GETTING HYP() === ");
   hyp = ps_get_hyp(ps, &score, &uttid);
 
   if (hyp == NULL) {
     NS_WARNING("ERROR hyp()");
+    hypoValue.AssignASCII("");
   } else {
     NS_WARNING("OK hyp(): ");
     NS_WARNING(hyp);
+    hypoValue.AssignASCII(hyp);
   }
 
-  fclose(_file);
+
+  NS_WARNING("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== ");
+  alternative->mTranscript =   hypoValue;
+  alternative->mConfidence = 0.0f;
+
+  result->mItems.AppendElement(alternative);
+  resultList->mItems.AppendElement(result);
+
+  event->mRecognitionResultList = resultList;
+  NS_DispatchToMainThread(event);
+
 
   return NS_OK;
 }
