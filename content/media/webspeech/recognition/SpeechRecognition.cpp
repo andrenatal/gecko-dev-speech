@@ -75,6 +75,7 @@ SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
   , mAudioSamplesPerChunk(mEndpointer.FrameSize())
   , mSpeechDetectionTimer(do_CreateInstance(NS_TIMER_CONTRACTID))
 {
+  NS_WARNING("==== CREATING SpeechRecognition() ... === ");
   SR_LOG("created SpeechRecognition");
 
   mTestConfig.Init();
@@ -93,14 +94,10 @@ SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
   Reset();
 
 
+
+
+
   NS_WARNING("==== CREATED SpeechRecognition() ... === ");
-
-
-  nsAutoCString speechRecognitionServiceCID;
-  GetRecognitionServiceCID(speechRecognitionServiceCID);
-
-  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
-  NS_ENSURE_SUCCESS_VOID(rv);
 
 
 }
@@ -542,6 +539,9 @@ SpeechRecognition::NotifyError(SpeechEvent* aEvent)
 NS_IMETHODIMP
 SpeechRecognition::StartRecording(DOMMediaStream* aDOMStream)
 {
+  NS_WARNING("==== SpeechRecognition::StartRecording() ... === ");
+
+
   // hold a reference so that the underlying stream
   // doesn't get Destroy()'ed
   mDOMStream = aDOMStream;
@@ -571,6 +571,8 @@ SpeechRecognition::StopRecording()
 
   mEndpointer.EndSession();
   DispatchTrustedEvent(NS_LITERAL_STRING("audioend"));
+
+  NS_WARNING("==== FINISH SpeechRecognition::StopRecording() ... === ");
 
   return NS_OK;
 }
@@ -716,6 +718,12 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
 
 
   rv = mRecognitionService->Initialize(this);
+
+  nsAutoCString speechRecognitionServiceCID;
+  GetRecognitionServiceCID(speechRecognitionServiceCID);
+  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
+  rv = mRecognitionService->Initialize(this->asWeakPtr());
   NS_ENSURE_SUCCESS_VOID(rv);
 
   MediaStreamConstraints constraints;
@@ -739,6 +747,8 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
 void
 SpeechRecognition::Stop()
 {
+  NS_WARNING("==== SpeechRecognition::Stop()  ... === ");
+
   nsRefPtr<SpeechEvent> event = new SpeechEvent(this, EVENT_STOP);
   NS_DispatchToMainThread(event);
 }
