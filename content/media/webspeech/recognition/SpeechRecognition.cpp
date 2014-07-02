@@ -559,6 +559,9 @@ SpeechRecognition::StartRecording(DOMMediaStream* aDOMStream)
 NS_IMETHODIMP
 SpeechRecognition::StopRecording()
 {
+  NS_WARNING("==== SpeechRecognition::StopRecording() ... === ");
+
+
   // we only really need to remove the listener explicitly when testing,
   // as our JS code still holds a reference to mDOMStream and only assigning
   // it to nullptr isn't guaranteed to free the stream and the listener.

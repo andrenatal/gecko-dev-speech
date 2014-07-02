@@ -33,9 +33,9 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
   NS_WARNING("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === ");
 
   config = cmd_ln_init(NULL, ps_args(), TRUE,
-             "-hmm", "/usr/local/src/mozilla/models/hub4wsj_sc_8k", // acoustic model
-             "-jsgf", "/usr/local/src/mozilla/models/lm/hello.jsgf", // initial grammar
-             "-dict", "/usr/local/src/mozilla/models/dict/cmu07a.dic", // point to yours
+             "-hmm", "/usr/local/src/mozilla/gecko-dev/models/hub4wsj_sc_8k", // acoustic model
+             "-jsgf", "/usr/local/src/mozilla/gecko-dev/models/lm/hello.jsgf", // initial grammar
+             "-dict", "/usr/local/src/mozilla/gecko-dev/models/dict/cmu07a.dic", // point to yours
              NULL);
    if (config == NULL)
      NS_WARNING("ERROR CREATING PSCONFIG");
@@ -48,6 +48,8 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
 
 PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 {
+  NS_WARNING("==== Destructiong PocketSphinxSpeechRecognitionService === ");
+
   config = NULL;
   ps = NULL;
   mSpeexState = NULL;
@@ -57,9 +59,9 @@ PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
 {
-  mSpeexState = NULL;
-
   NS_WARNING("==== PocketSphinxSpeechRecognitionService::Initialize  === ");
+
+  mSpeexState = NULL;
 
   mRecognition = aSpeechRecognition;
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -92,13 +94,13 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
 
   AudioSegment::ChunkIterator iterator(*aAudioSegment);
   while (!iterator.IsEnded()) {
-    NS_WARNING("==== START ITERATING === ");
+    //NS_WARNING("==== START ITERATING === ");
 
     const int16_t* audio_data = static_cast<const int16_t*>(iterator->mChannelData[0]);
 
     fwrite(audio_data,sizeof(int16_t) , iterator->mDuration , _file);
 
-    NS_WARNING("==== END ITERATING === ");
+    //NS_WARNING("==== END ITERATING === ");
     iterator.Next();
   }
 
@@ -109,6 +111,7 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::SoundEnd()
 {
+  NS_WARNING("==== SOUNDEND() ==== ");
 
 
   // Declare javascript result events
@@ -178,6 +181,8 @@ PocketSphinxSpeechRecognitionService::Abort()
 NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
 {
+  NS_WARNING("==== OBSERVE  ==== ");
+
   MOZ_ASSERT(mRecognition->mTestConfig.mFakeRecognitionService,
              "Got request to fake recognition service event, but "
              TEST_PREFERENCE_FAKE_RECOGNITION_SERVICE " is not set");

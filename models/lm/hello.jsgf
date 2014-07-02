@@ -1,0 +1,4 @@
+#JSGF V1.0; grammar test; 
+
+
+public <simple> =  go forward ten meters  |  turn left | miami beach | george washington ;
