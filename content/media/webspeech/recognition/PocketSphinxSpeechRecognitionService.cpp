@@ -75,7 +75,7 @@ NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
 {
   if (!mSpeexState) {
-      mSpeexState = speex_resampler_init(1,  44100, 8000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
+      mSpeexState = speex_resampler_init(1,  44100, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
       NS_WARNING("==== STATE CREATED === ");
 
       _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "w");
