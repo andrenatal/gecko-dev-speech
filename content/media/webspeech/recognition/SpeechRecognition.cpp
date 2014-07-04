@@ -169,6 +169,8 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           WaitForAudioData(aEvent);
           break;
         case EVENT_STOP:
+          NS_WARNING("==== SpeechRecognition::Transition Stop  === ");
+          break;
         case EVENT_ABORT:
         case EVENT_AUDIO_DATA:
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
@@ -196,6 +198,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           AbortSilently(aEvent);
           break;
         case EVENT_STOP:
+          NS_WARNING("==== SpeechRecognition::Transition Stop  === ");
           Reset();
           break;
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
@@ -215,6 +218,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           WaitForEstimation(aEvent);
           break;
         case EVENT_STOP:
+          NS_WARNING("==== SpeechRecognition::Transition Stop  === ");
           StopRecordingAndRecognize(aEvent);
           break;
         case EVENT_ABORT:
@@ -241,6 +245,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           DetectSpeech(aEvent);
           break;
         case EVENT_STOP:
+          NS_WARNING("==== SpeechRecognition::Transition Stop  === ");
           StopRecordingAndRecognize(aEvent);
           break;
         case EVENT_ABORT:
@@ -267,6 +272,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           WaitForSpeechEnd(aEvent);
           break;
         case EVENT_STOP:
+          NS_WARNING("==== SpeechRecognition::Transition Stop  === ");
           StopRecordingAndRecognize(aEvent);
           break;
         case EVENT_AUDIO_ERROR:
@@ -290,6 +296,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
     case STATE_WAITING_FOR_RESULT:
       switch (aEvent->mType) {
         case EVENT_STOP:
+          NS_WARNING("==== SpeechRecognition::Transition Stop  === ");
           DoNothing(aEvent);
           break;
         case EVENT_AUDIO_ERROR:

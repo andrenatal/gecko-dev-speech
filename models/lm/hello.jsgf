@@ -1,4 +1,4 @@
 #JSGF V1.0; grammar test; 
 
 
-public <simple> =  go forward ten meters  |  turn left | miami beach | george washington ;
+public <simple> =  go forward ten meters  |  turn left | miami beach | george washington | open browser | call mary | travel to new york | brazil is so far ;

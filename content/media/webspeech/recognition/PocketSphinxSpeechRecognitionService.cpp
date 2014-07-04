@@ -44,15 +44,22 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
    if (ps == NULL)
      NS_WARNING("ERROR CREATING PSDECODER");
 
+   NS_WARNING("==== CONSTRUCTED  PocketSphinxSpeechRecognitionService === ");
+
+   mSpeexState = NULL;
+
 }
 
 PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
 {
   NS_WARNING("==== Destructiong PocketSphinxSpeechRecognitionService === ");
 
-  config = NULL;
-  ps = NULL;
-  mSpeexState = NULL;
+  if (config) config = NULL;
+  if (ps) ps = NULL;
+  if (mSpeexState) mSpeexState = NULL;
+
+  NS_WARNING("==== DESTRUCTED PocketSphinxSpeechRecognitionService === ");
+
 }
 
 // CALL START IN JS FALLS HERE
@@ -61,7 +68,8 @@ PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpe
 {
   NS_WARNING("==== PocketSphinxSpeechRecognitionService::Initialize  === ");
 
-  mSpeexState = NULL;
+  if (mSpeexState)
+    mSpeexState = NULL;
 
   mRecognition = aSpeechRecognition;
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -69,6 +77,8 @@ PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpe
   obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
 
 
+
+  NS_WARNING("==== END OF PocketSphinxSpeechRecognitionService::Initialize  === ");
 
   return NS_OK;
 }
@@ -83,10 +93,7 @@ PocketSphinxSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSe
       _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "w");
 
   }
-  else
-  {
-    NS_WARNING("==== STATE NOT CREATED === ");
-  }
+
 
   NS_WARNING("==== RESAMPLING CHUNKS === ");
   aAudioSegment->ResampleChunks(mSpeexState);
@@ -112,7 +119,7 @@ NS_IMETHODIMP
 PocketSphinxSpeechRecognitionService::SoundEnd()
 {
   NS_WARNING("==== SOUNDEND() ==== ");
-
+  fclose(_file);
 
   // Declare javascript result events
   nsRefPtr<SpeechEvent> event =
@@ -125,16 +132,12 @@ PocketSphinxSpeechRecognitionService::SoundEnd()
 
 
   NS_WARNING("==== SOUNDEND() DESTROYING SPEEX STATE ==== ");
-
   speex_resampler_destroy(mSpeexState);
   mSpeexState= NULL;
 
+
   NS_WARNING("==== SOUNDEND() DECODING SPEECH. OPENING FILE === ");
-
-  // TODO : TRY TO KEEP OPEN AND ONLY CLOSE LATER
-  fclose(_file);
   _file = fopen("/usr/local/src/mozilla/tempaudiofiles/audio.raw", "r");
-
   NS_WARNING("==== SOUNDEND() DECODING RAW === ");
   const char *hyp, *uttid;
   int32 score;
