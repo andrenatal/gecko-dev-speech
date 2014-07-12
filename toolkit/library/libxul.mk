@@ -60,5 +60,3 @@ ifeq (Linux,$(OS_ARCH))
 LOCAL_CHECKS += ; test "$$($(TOOLCHAIN_PREFIX)readelf -l $1 | awk '$1 == "LOAD" { t += 1 } END { print t }')" -le 1 && echo "Only one PT_LOAD segment" && exit 1 || exit 0
 endif
 
-OS_LIBS += -lpocketsphinx \
--lsphinxbase

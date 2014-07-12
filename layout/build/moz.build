@@ -73,6 +73,8 @@ LOCAL_INCLUDES += [
     '/extensions/cookie',
     '/js/xpconnect/loader',
     '/js/xpconnect/src',
+    '/media/pocketsphinx',
+    '/media/sphinxbase',
     '/netwerk/base/src',
     '/netwerk/cookie',
     '/view',

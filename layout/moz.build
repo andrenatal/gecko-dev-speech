@@ -34,5 +34,6 @@ MOCHITEST_MANIFESTS += [
     'reftests/fonts/math/mochitest.ini',
     'reftests/fonts/mochitest.ini',
     'reftests/fonts/mplus/mochitest.ini'
+    'reftests/fonts/mplus/mochitest.ini',
 ]
 
