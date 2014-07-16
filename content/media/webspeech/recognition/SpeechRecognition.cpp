@@ -21,6 +21,9 @@
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 
+#include "nsWeakPtr.h"
+#include "nsIWeakReferenceUtils.h"
+
 #include <algorithm>
 
 
@@ -94,7 +97,10 @@ SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
   Reset();
 
 
-
+  nsAutoCString speechRecognitionServiceCID;
+  GetRecognitionServiceCID(speechRecognitionServiceCID);
+  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
 
 
   NS_WARNING("==== CREATED SpeechRecognition() ... === ");
@@ -343,7 +349,7 @@ SpeechRecognition::ProcessAudioSegment(AudioSegment* aSegment)
     iterator.Next();
   }
 
-  mRecognitionService->ProcessAudioSegment(aSegment);
+  mRecognitionService->ProcessAudioSegment(44100,aSegment);
   return samples;
 }
 
@@ -638,7 +644,8 @@ SpeechRecognition::GetGrammars(ErrorResult& aRv) const
 void
 SpeechRecognition::SetGrammars(SpeechGrammarList& aArg, ErrorResult& aRv)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  WeakPtr<SpeechGrammarList> weakGrammarPtr =  aArg.asWeakPtr();
+  mRecognitionService->SetGrammarList( weakGrammarPtr );
   return;
 }
 
@@ -726,10 +733,7 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
 
   rv = mRecognitionService->Initialize(this);
 
-  nsAutoCString speechRecognitionServiceCID;
-  GetRecognitionServiceCID(speechRecognitionServiceCID);
-  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
-  NS_ENSURE_SUCCESS_VOID(rv);
+
   rv = mRecognitionService->Initialize(this->asWeakPtr());
   NS_ENSURE_SUCCESS_VOID(rv);
 

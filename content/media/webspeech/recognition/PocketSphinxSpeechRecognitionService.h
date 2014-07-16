@@ -25,6 +25,7 @@ namespace mozilla {
   namespace dom {
     class SpeechRecognition;
     class SpeechRecognitionResultList;
+    class SpeechGrammarList;
   }
 }
 
@@ -54,7 +55,7 @@ private:
   FILE *_file;
   ps_decoder_t * ps;
   cmd_ln_t *config;
-
+  nsCString maudiopath;
 };
 
 } // namespace mozilla

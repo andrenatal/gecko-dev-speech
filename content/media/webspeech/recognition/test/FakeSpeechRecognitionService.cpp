@@ -40,7 +40,13 @@ FakeSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecog
 }
 
 NS_IMETHODIMP
-FakeSpeechRecognitionService::ProcessAudioSegment(AudioSegment* aAudioSegment)
+FakeSpeechRecognitionService::ProcessAudioSegment(int32_t aSampleRate,AudioSegment* aAudioSegment)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FakeSpeechRecognitionService::SetGrammarList(WeakPtr<SpeechGrammarList> aSpeechGramarList)
 {
   return NS_OK;
 }

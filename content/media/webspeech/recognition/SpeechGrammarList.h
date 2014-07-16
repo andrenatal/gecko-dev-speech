@@ -11,8 +11,11 @@
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
+#include "nsWeakReference.h"
 
 struct JSContext;
+
+class nsIDOMWindow;
 
 namespace mozilla {
 
@@ -24,10 +27,15 @@ class GlobalObject;
 class SpeechGrammar;
 template<typename> class Optional;
 
-class SpeechGrammarList MOZ_FINAL : public nsISupports,
-                                    public nsWrapperCache
+class SpeechGrammarList MOZ_FINAL : public nsSupportsWeakReference,
+                                    public nsWrapperCache,
+                                    public SupportsWeakPtr<SpeechGrammarList>
+
+
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(SpeechGrammarList)
+
   SpeechGrammarList(nsISupports* aParent);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

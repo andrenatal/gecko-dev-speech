@@ -17,6 +17,8 @@ namespace mozilla {
   namespace dom {
     class SpeechRecognition;
     class SpeechRecognitionResultList;
+    class SpeechGrammarList;
+
   }
 }
 
