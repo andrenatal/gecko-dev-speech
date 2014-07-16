@@ -230,9 +230,9 @@ namespace mozilla {
      fsg_set_select(fsgset , dtgram );
      ps_update_fsgset(ps);
 
-    return NS_OK;
 
     */
+    return NS_OK;
 
   }
 
