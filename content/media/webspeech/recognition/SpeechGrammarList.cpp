@@ -89,19 +89,25 @@ namespace mozilla {
       }
 
       rv = tmpFile->Append(NS_LITERAL_STRING("grm.jsgf") );
-      NS_ENSURE_SUCCESS_VOID(rv);
+      //NS_ENSURE_SUCCESS_VOID(rv);
 
       // write the grammar
       FILE* fpgram;
 
       rv = tmpFile->OpenANSIFileDesc("w", &fpgram);
-      NS_ENSURE_SUCCESS_VOID(rv);
+      //NS_ENSURE_SUCCESS_VOID(rv);
       nsCString mgramdata = NS_ConvertUTF16toUTF8(aString);
 
       fwrite(mgramdata.get(),sizeof(char) , mgramdata.Length() , fpgram);
 
       fclose(fpgram);
 
+
+      nsString aStringPath;
+      tmpFile->GetPath(aStringPath);
+      nsCString mgrammarpath = NS_ConvertUTF16toUTF8(aStringPath);
+      mgram = mgrammarpath.get();
+      NS_WARNING(mgram);
 
       return;
     }

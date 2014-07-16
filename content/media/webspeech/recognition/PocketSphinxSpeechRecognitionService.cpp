@@ -20,6 +20,8 @@ extern "C"
 {
   #include <pocketsphinx/pocketsphinx.h>
   #include <sphinxbase/sphinx_config.h>
+  #include <sphinxbase/jsgf.h>
+
 }
 
 namespace mozilla {
@@ -197,43 +199,41 @@ namespace mozilla {
   {
 
     /*
-        // get grammar temp folder
-        nsCOMPtr<nsIFile> tmpGramFile;
-        nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpGramFile));
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-           return;
-        }
-        rv = tmpGramFile->Append(NS_LITERAL_STRING("grm.jsgf") );
-        NS_ENSURE_SUCCESS_VOID(rv);
-        nsString aStringPath;
-        tmpGramFile->GetPath(aStringPath);
-        nsCString mgrammarpath = NS_ConvertUTF16toUTF8(aStringPath);
-        const char * mgram = mgrammarpath.get();
+      // get grammar temp folder
+      nsCOMPtr<nsIFile> tmpGramFile;
+      nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpGramFile));
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+          return NS_OK;
+      }
+      rv = tmpGramFile->Append(NS_LITERAL_STRING("grm.jsgf") );
+      NS_ENSURE_SUCCESS_VOID(rv);
+      nsString aStringPath;
+      tmpGramFile->GetPath(aStringPath);
+      nsCString mgrammarpath = NS_ConvertUTF16toUTF8(aStringPath);
+      const char * mgram = mgrammarpath.get();
 
-        NS_WARNING("==== Defined grammar path === ");
+      NS_WARNING("==== Defined grammar path === ");
+    */
 
 
 
-     jsgf_rule_iter_t *itor;
-     jsgf_t * gram = jsgf_parse_file(grampath.c_str(), NULL);
+
+     // parse the grammar
+     jsgf_rule_iter_t *itor;     
+     jsgf_t * gram = jsgf_parse_file(aSpeechGramarList->mgram, NULL);
      jsgf_rule_t * rule;
-
      for (itor = jsgf_rule_iter(gram); itor; itor = jsgf_rule_iter_next(itor)) {
          rule = jsgf_rule_iter_rule(itor);
          if (jsgf_rule_public(rule))
              break;
      }
 
+
      fsg_model_t * m = jsgf_build_fsg(gram, rule, ps_get_logmath(ps), 6.5);
-     fsg_set_t* fsgset = ps_get_fsgset(ps);
-     fsg_set_add(fsgset, dtgram , m);
-     fsg_set_select(fsgset , dtgram );
-     ps_update_fsgset(ps);
-
-
-    */
-    return NS_OK;
-
+     ps_set_fsg(ps, "name", m);
+     ps_set_search(ps, "name");
+  
+     return NS_OK;
   }
 
   NS_IMETHODIMP

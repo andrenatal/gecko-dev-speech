@@ -58,10 +58,13 @@ static  SpeechGrammarList* Constructor(const GlobalObject& aGlobal,
 
   already_AddRefed<SpeechGrammar> IndexedGetter(uint32_t aIndex, bool& aPresent, ErrorResult& aRv);
 
+  const char * mgram;
+
 private:
   ~SpeechGrammarList();
 
   nsCOMPtr<nsISupports> mParent;
+
 };
 
 } // namespace dom
