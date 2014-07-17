@@ -16,6 +16,7 @@
 #include "mozilla/Services.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
+
 extern "C"
 {
   #include <pocketsphinx/pocketsphinx.h>
@@ -32,7 +33,7 @@ namespace mozilla {
 
   PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
   {
-    NS_WARNING("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === ");
+    printf("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === \n");
 
 
 
@@ -56,13 +57,13 @@ namespace mozilla {
                "-dict", "models/dict/cmu07a.dic", // point to yours
                NULL);
      if (config == NULL)
-       NS_WARNING("ERROR CREATING PSCONFIG");
+       printf("ERROR CREATING PSCONFIG");
 
      ps = ps_init(config);
      if (ps == NULL)
-       NS_WARNING("ERROR CREATING PSDECODER");
+       printf("ERROR CREATING PSDECODER \n");
 
-     NS_WARNING("==== CONSTRUCTED  PocketSphinxSpeechRecognitionService === ");
+     printf("==== CONSTRUCTED  PocketSphinxSpeechRecognitionService === \n");
 
      mSpeexState = NULL;
 
@@ -70,13 +71,13 @@ namespace mozilla {
 
   PocketSphinxSpeechRecognitionService::~PocketSphinxSpeechRecognitionService()
   {
-    NS_WARNING("==== Destructing PocketSphinxSpeechRecognitionService === ");
+    printf("==== Destructing PocketSphinxSpeechRecognitionService === \n");
 
     if (config) config = NULL;
     if (ps) ps = NULL;
     if (mSpeexState) mSpeexState = NULL;
 
-    NS_WARNING("==== DESTRUCTED PocketSphinxSpeechRecognitionService === ");
+    printf("==== DESTRUCTED PocketSphinxSpeechRecognitionService === \n");
 
   }
 
@@ -84,7 +85,7 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
   {
-    NS_WARNING("==== PocketSphinxSpeechRecognitionService::Initialize  === ");
+    printf("==== PocketSphinxSpeechRecognitionService::Initialize  === \n");
 
     if (mSpeexState)
       mSpeexState = NULL;
@@ -96,7 +97,7 @@ namespace mozilla {
 
 
 
-    NS_WARNING("==== END OF PocketSphinxSpeechRecognitionService::Initialize  === ");
+    printf("==== END OF PocketSphinxSpeechRecognitionService::Initialize  === \n ");
 
     return NS_OK;
   }
@@ -106,26 +107,26 @@ namespace mozilla {
   {
     if (!mSpeexState) {
         mSpeexState = speex_resampler_init(1,  44100, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
-        NS_WARNING("==== STATE CREATED === ");
+        printf("==== STATE CREATED === ");
 
         _file = fopen("/tmp/audio.raw", "w");
 
     }
 
 
-  //  NS_WARNING("==== RESAMPLING CHUNKS === ");
+  //  printf("==== RESAMPLING CHUNKS === ");
     aAudioSegment->ResampleChunks(mSpeexState);
 
 
     AudioSegment::ChunkIterator iterator(*aAudioSegment);
     while (!iterator.IsEnded()) {
-      //NS_WARNING("==== START ITERATING === ");
+      //printf("==== START ITERATING === ");
 
       const int16_t* audio_data = static_cast<const int16_t*>(iterator->mChannelData[0]);
 
       fwrite(audio_data,sizeof(int16_t) , iterator->mDuration , _file);
 
-      //NS_WARNING("==== END ITERATING === ");
+      //printf("==== END ITERATING === ");
       iterator.Next();
     }
 
@@ -136,7 +137,7 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::SoundEnd()
   {
-    NS_WARNING("==== SOUNDEND() ==== ");
+    printf("==== SOUNDEND() ==== ");
     fclose(_file);
 
     // Declare javascript result events
@@ -149,37 +150,37 @@ namespace mozilla {
     nsString hypoValue;
 
 
-    NS_WARNING("==== SOUNDEND() DESTROYING SPEEX STATE ==== ");
+    printf("==== SOUNDEND() DESTROYING SPEEX STATE ==== ");
     speex_resampler_destroy(mSpeexState);
     mSpeexState= NULL;
 
 
-    NS_WARNING("==== SOUNDEND() DECODING SPEECH. OPENING FILE === ");
+    printf("==== SOUNDEND() DECODING SPEECH. OPENING FILE === ");
     _file = fopen("/tmp/audio.raw", "r");
-    NS_WARNING("==== SOUNDEND() DECODING RAW === ");
+    printf("==== SOUNDEND() DECODING RAW === ");
     const char *hyp, *uttid;
     int32 score;
     int _psrv = ps_decode_raw(ps, _file, NULL, -1);
     if (_psrv < 0)
     {
-      NS_WARNING("ERROR ps_decode_raw");
+      printf("ERROR ps_decode_raw");
     }
     fclose(_file);
 
-    NS_WARNING("==== SOUNDEND() GETTING HYP() === ");
+    printf("==== SOUNDEND() GETTING HYP() === ");
     hyp = ps_get_hyp(ps, &score, &uttid);
 
     if (hyp == NULL) {
-      NS_WARNING("ERROR hyp()");
+      printf("ERROR hyp()");
       hypoValue.AssignASCII("");
     } else {
-      NS_WARNING("OK hyp(): ");
-      NS_WARNING(hyp);
+      printf("OK hyp(): ");
+      printf(hyp);
       hypoValue.AssignASCII(hyp);
     }
 
 
-    NS_WARNING("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== ");
+    printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== ");
     alternative->mTranscript =   hypoValue;
     alternative->mConfidence = 0.0f;
 
@@ -212,7 +213,7 @@ namespace mozilla {
       nsCString mgrammarpath = NS_ConvertUTF16toUTF8(aStringPath);
       const char * mgram = mgrammarpath.get();
 
-      NS_WARNING("==== Defined grammar path === ");
+      printf("==== Defined grammar path === ");
     */
 
 
@@ -245,7 +246,6 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
   {
-    NS_WARNING("==== OBSERVE  ==== ");
 
     MOZ_ASSERT(mRecognition->mTestConfig.mFakeRecognitionService,
                "Got request to fake recognition service event, but "

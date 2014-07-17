@@ -1,0 +1,7 @@
+#!/bin/sh
+
+cd /usr/local/src/mozilla/gecko-dev
+sudo ./mach build content/media/webspeech/recognition/
+./mach debug  --display :0 -profile /home/andre/.mozilla/firefox/goazaaie.webspeech/
+
+

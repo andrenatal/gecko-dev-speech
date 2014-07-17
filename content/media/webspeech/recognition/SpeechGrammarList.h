@@ -12,6 +12,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
 #include "nsWeakReference.h"
+#include "mozilla/WeakPtr.h"
 
 struct JSContext;
 
@@ -28,8 +29,8 @@ class SpeechGrammar;
 template<typename> class Optional;
 
 class SpeechGrammarList MOZ_FINAL : public nsSupportsWeakReference,
-                                    public nsWrapperCache,
-                                    public SupportsWeakPtr<SpeechGrammarList>
+                                    public SupportsWeakPtr<SpeechGrammarList>,
+                                    public nsWrapperCache
 
 
 {

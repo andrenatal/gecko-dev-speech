@@ -1,0 +1,7 @@
+#!/bin/sh
+
+../obj-ff/dist/bin/firefox-bin -profile /home/andre/.mozilla/firefox/goazaaie.webspeech/
+
+
+
+
