@@ -81,7 +81,7 @@ namespace mozilla {
                                      ErrorResult& aRv)
     {
 
-        printf("=== SpeechGrammarList::AddFromString Writing grammar " );
+        printf("=== SpeechGrammarList::AddFromString Writing grammar \n " );
 
 
         // get temp folder
@@ -114,7 +114,7 @@ namespace mozilla {
         tmpFile = NULL;
         fpgram = NULL;
 
-        printf("=== Grammar written to path %s === " , mgram);
+        printf("=== Grammar written to path %s === \n " , mgram);
 
         return;
     }

@@ -36,8 +36,9 @@ namespace mozilla {
     printf("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === \n");
 
 
+    // FOR B2G PATHS HARDCODED (APPEND /DATA ON THE BEGINING, FOR DESKTOP, ONLY MODELS/ RELATIVE TO ROOT
     config = cmd_ln_init(NULL, ps_args(), TRUE,
-               "-hmm", "models/hub4wsj_sc_8k", // acoustic model
+               "-hmm", "models/en-us-semi", // acoustic model
 //                "-jsgf", mgram , // initial grammar
                "-dict", "models/dict/cmu07a.dic", // point to yours
                NULL);
