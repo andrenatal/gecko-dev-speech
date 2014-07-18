@@ -78,7 +78,7 @@ SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
   , mAudioSamplesPerChunk(mEndpointer.FrameSize())
   , mSpeechDetectionTimer(do_CreateInstance(NS_TIMER_CONTRACTID))
 {
-  printf("==== CREATING SpeechRecognition() ... === ");
+  printf("==== CREATING SpeechRecognition() ... === \n");
   SR_LOG("created SpeechRecognition");
 
   mTestConfig.Init();
@@ -103,7 +103,7 @@ SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
   NS_ENSURE_SUCCESS_VOID(rv);
 
 
-  printf("==== CREATED SpeechRecognition() ... === ");
+  printf("==== CREATED SpeechRecognition() ... === \n");
 
 
 }
@@ -175,7 +175,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           WaitForAudioData(aEvent);
           break;
         case EVENT_STOP:
-          printf("==== SpeechRecognition::Transition Stop  === ");
+          printf("==== SpeechRecognition::Transition Stop  === \n");
           break;
         case EVENT_ABORT:
         case EVENT_AUDIO_DATA:
@@ -204,7 +204,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           AbortSilently(aEvent);
           break;
         case EVENT_STOP:
-          printf("==== SpeechRecognition::Transition Stop  === ");
+          printf("==== SpeechRecognition::Transition Stop  === \n");
           Reset();
           break;
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
@@ -224,7 +224,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           WaitForEstimation(aEvent);
           break;
         case EVENT_STOP:
-          printf("==== SpeechRecognition::Transition Stop  === ");
+          printf("==== SpeechRecognition::Transition Stop  === \n");
           StopRecordingAndRecognize(aEvent);
           break;
         case EVENT_ABORT:
@@ -251,7 +251,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           DetectSpeech(aEvent);
           break;
         case EVENT_STOP:
-          printf("==== SpeechRecognition::Transition Stop  === ");
+          printf("==== SpeechRecognition::Transition Stop  === \n");
           StopRecordingAndRecognize(aEvent);
           break;
         case EVENT_ABORT:
@@ -278,7 +278,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           WaitForSpeechEnd(aEvent);
           break;
         case EVENT_STOP:
-          printf("==== SpeechRecognition::Transition Stop  === ");
+          printf("==== SpeechRecognition::Transition Stop  === \n");
           StopRecordingAndRecognize(aEvent);
           break;
         case EVENT_AUDIO_ERROR:
@@ -302,7 +302,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
     case STATE_WAITING_FOR_RESULT:
       switch (aEvent->mType) {
         case EVENT_STOP:
-          printf("==== SpeechRecognition::Transition Stop  === ");
+          printf("==== SpeechRecognition::Transition Stop  === \n");
           DoNothing(aEvent);
           break;
         case EVENT_AUDIO_ERROR:
@@ -552,7 +552,7 @@ SpeechRecognition::NotifyError(SpeechEvent* aEvent)
 NS_IMETHODIMP
 SpeechRecognition::StartRecording(DOMMediaStream* aDOMStream)
 {
-  printf("==== SpeechRecognition::StartRecording() ... === ");
+  printf("==== SpeechRecognition::StartRecording() ... === \n");
 
 
   // hold a reference so that the underlying stream
@@ -572,7 +572,7 @@ SpeechRecognition::StartRecording(DOMMediaStream* aDOMStream)
 NS_IMETHODIMP
 SpeechRecognition::StopRecording()
 {
-  printf("==== SpeechRecognition::StopRecording() ... === ");
+  printf("==== SpeechRecognition::StopRecording() ... === \n");
 
 
   // we only really need to remove the listener explicitly when testing,
@@ -585,7 +585,7 @@ SpeechRecognition::StopRecording()
   mEndpointer.EndSession();
   DispatchTrustedEvent(NS_LITERAL_STRING("audioend"));
 
-  printf("==== FINISH SpeechRecognition::StopRecording() ... === ");
+  printf("==== FINISH SpeechRecognition::StopRecording() ... === \n");
 
   return NS_OK;
 }
@@ -733,7 +733,7 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
   }
 
 
-  printf("==== STARTING SpeechRecognition() ... === ");
+  printf("==== STARTING SpeechRecognition() ... === \n");
 
 
   rv = mRecognitionService->Initialize(this);
@@ -767,7 +767,7 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
 void
 SpeechRecognition::Stop()
 {
-  printf("==== SpeechRecognition::Stop()  ... === ");
+  printf("==== SpeechRecognition::Stop()  ... === \n");
 
   nsRefPtr<SpeechEvent> event = new SpeechEvent(this, EVENT_STOP);
   NS_DispatchToMainThread(event);
