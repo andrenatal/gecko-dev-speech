@@ -56,6 +56,7 @@ private:
   ps_decoder_t * ps;
   cmd_ln_t *config;
   nsCString maudiopath;
+  const char * maudio;
 };
 
 } // namespace mozilla

@@ -36,21 +36,6 @@ namespace mozilla {
     printf("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === \n");
 
 
-
-    /*
-    nsCOMPtr<nsIFile> tmpAudioFile;
-    // get audio temp folder
-    rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpAudioFile));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-       return;
-    }
-    rv = tmpAudioFile->Append(NS_LITERAL_STRING("audio.raw") );
-    NS_ENSURE_SUCCESS_VOID(rv);
-    nsString aStringAudioPath;
-    tmpAudioFile->GetPath(aStringAudioPath);
-    maudiopath = NS_ConvertUTF16toUTF8(aStringAudioPath);
-*/
-
     config = cmd_ln_init(NULL, ps_args(), TRUE,
                "-hmm", "models/hub4wsj_sc_8k", // acoustic model
 //                "-jsgf", mgram , // initial grammar
@@ -96,8 +81,22 @@ namespace mozilla {
     obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
 
 
+    // get temp folder
+    nsCOMPtr<nsIFile> tmpFile;
+    nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile));
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      printf("==== NO TEMP FOLDER EXISTS ==== \n");
+       return NS_ERROR_FILE_NOT_FOUND;
+    }
+    rv = tmpFile->Append(NS_LITERAL_STRING("audio.raw") );
+    nsString aStringPath;
+    tmpFile->GetPath(aStringPath);
+    maudio = ToNewUTF8String(aStringPath);
+
 
     printf("==== END OF PocketSphinxSpeechRecognitionService::Initialize  === \n ");
+
+    tmpFile = NULL;
 
     return NS_OK;
   }
@@ -109,7 +108,7 @@ namespace mozilla {
         mSpeexState = speex_resampler_init(1,  44100, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
         printf("==== STATE CREATED === ");
 
-        _file = fopen("/tmp/audio.raw", "w");
+        _file = fopen(maudio, "w");
 
     }
 
@@ -137,7 +136,7 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::SoundEnd()
   {
-    printf("==== SOUNDEND() ==== ");
+    printf("==== SOUNDEND() ==== \n");
     fclose(_file);
 
     // Declare javascript result events
@@ -150,14 +149,17 @@ namespace mozilla {
     nsString hypoValue;
 
 
-    printf("==== SOUNDEND() DESTROYING SPEEX STATE ==== ");
+    printf("==== SOUNDEND() DESTROYING SPEEX STATE ==== \n");
     speex_resampler_destroy(mSpeexState);
     mSpeexState= NULL;
 
 
-    printf("==== SOUNDEND() DECODING SPEECH. OPENING FILE === ");
-    _file = fopen("/tmp/audio.raw", "r");
-    printf("==== SOUNDEND() DECODING RAW === ");
+
+
+
+    printf("==== SOUNDEND() DECODING SPEECH. OPENING FILE === \n");
+    _file = fopen(maudio, "r");
+    printf("==== SOUNDEND() DECODING RAW === \n");
     const char *hyp, *uttid;
     int32 score;
     int _psrv = ps_decode_raw(ps, _file, NULL, -1);
@@ -167,7 +169,7 @@ namespace mozilla {
     }
     fclose(_file);
 
-    printf("==== SOUNDEND() GETTING HYP() === ");
+    printf("==== SOUNDEND() GETTING HYP() === \n");
     hyp = ps_get_hyp(ps, &score, &uttid);
 
     if (hyp == NULL) {
@@ -180,7 +182,7 @@ namespace mozilla {
     }
 
 
-    printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== ");
+    printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== \n");
     alternative->mTranscript =   hypoValue;
     alternative->mConfidence = 0.0f;
 
@@ -191,6 +193,9 @@ namespace mozilla {
     NS_DispatchToMainThread(event);
 
 
+
+    _file = NULL;
+
     return NS_OK;
   }
 
@@ -198,43 +203,37 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::SetGrammarList(WeakPtr<SpeechGrammarList> aSpeechGramarList)
   {
+    const char * mgram = NULL;
+    if (aSpeechGramarList)
+    {
+       mgram = aSpeechGramarList->mgram;
+       printf("==== Creating grammar. on path  %s  === \n" , mgram);
 
-    /*
-      // get grammar temp folder
-      nsCOMPtr<nsIFile> tmpGramFile;
-      nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpGramFile));
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-          return NS_OK;
-      }
-      rv = tmpGramFile->Append(NS_LITERAL_STRING("grm.jsgf") );
-      NS_ENSURE_SUCCESS_VOID(rv);
-      nsString aStringPath;
-      tmpGramFile->GetPath(aStringPath);
-      nsCString mgrammarpath = NS_ConvertUTF16toUTF8(aStringPath);
-      const char * mgram = mgrammarpath.get();
+       // parse the grammar
+        jsgf_rule_iter_t *itor;
+        jsgf_t * gram = jsgf_parse_file(aSpeechGramarList->mgram, NULL);
+        jsgf_rule_t * rule = NULL;
+        for (itor = jsgf_rule_iter(gram); itor; itor = jsgf_rule_iter_next(itor)) {
+            rule = jsgf_rule_iter_rule(itor);
+            if (jsgf_rule_public(rule))
+                 break;
+        }
 
-      printf("==== Defined grammar path === ");
-    */
+        if (rule)
+        {
+           fsg_model_t * m = jsgf_build_fsg(gram, rule, ps_get_logmath(ps), 6.5);
+           ps_set_fsg(ps, "name", m);
+           ps_set_search(ps, "name");
+        }
 
-
-
-
-     // parse the grammar
-     jsgf_rule_iter_t *itor;     
-     jsgf_t * gram = jsgf_parse_file(aSpeechGramarList->mgram, NULL);
-     jsgf_rule_t * rule;
-     for (itor = jsgf_rule_iter(gram); itor; itor = jsgf_rule_iter_next(itor)) {
-         rule = jsgf_rule_iter_rule(itor);
-         if (jsgf_rule_public(rule))
-             break;
-     }
+    }
+    else
+    {
+      printf("==== aSpeechGramarList is NULL  === \n" );
+    }
 
 
-     fsg_model_t * m = jsgf_build_fsg(gram, rule, ps_get_logmath(ps), 6.5);
-     ps_set_fsg(ps, "name", m);
-     ps_set_search(ps, "name");
-  
-     return NS_OK;
+    return NS_OK;
   }
 
   NS_IMETHODIMP

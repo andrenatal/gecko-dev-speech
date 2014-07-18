@@ -644,6 +644,11 @@ SpeechRecognition::GetGrammars(ErrorResult& aRv) const
 void
 SpeechRecognition::SetGrammars(SpeechGrammarList& aArg, ErrorResult& aRv)
 {
+  nsAutoCString speechRecognitionServiceCID;
+  GetRecognitionServiceCID(speechRecognitionServiceCID);
+  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
   WeakPtr<SpeechGrammarList> weakGrammarPtr =  aArg.asWeakPtr();
   mRecognitionService->SetGrammarList( weakGrammarPtr );
   return;
@@ -733,6 +738,10 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
 
   rv = mRecognitionService->Initialize(this);
 
+  nsAutoCString speechRecognitionServiceCID;
+  GetRecognitionServiceCID(speechRecognitionServiceCID);
+  mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
 
   rv = mRecognitionService->Initialize(this->asWeakPtr());
   NS_ENSURE_SUCCESS_VOID(rv);

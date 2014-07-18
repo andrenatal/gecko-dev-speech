@@ -80,6 +80,10 @@ namespace mozilla {
                                      const Optional<float>& aWeight,
                                      ErrorResult& aRv)
     {
+
+        printf("=== SpeechGrammarList::AddFromString Writing grammar " );
+
+
         // get temp folder
         nsCOMPtr<nsIFile> tmpFile;
         nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile));
@@ -105,9 +109,12 @@ namespace mozilla {
 
         nsString aStringPath;
         tmpFile->GetPath(aStringPath);
-        nsCString mgrammarpath = NS_ConvertUTF16toUTF8(aStringPath);
-        mgram = mgrammarpath.get();
-        printf(mgram);
+        mgram = ToNewUTF8String(aStringPath);
+
+        tmpFile = NULL;
+        fpgram = NULL;
+
+        printf("=== Grammar written to path %s === " , mgram);
 
         return;
     }
