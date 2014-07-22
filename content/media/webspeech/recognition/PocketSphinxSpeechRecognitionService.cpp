@@ -106,7 +106,7 @@ namespace mozilla {
   PocketSphinxSpeechRecognitionService::ProcessAudioSegment(int32_t aSampleRate, AudioSegment* aAudioSegment)
   {
     if (!mSpeexState) {
-        mSpeexState = speex_resampler_init(1,  44100, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
+        mSpeexState = speex_resampler_init(1,  aSampleRate, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
         printf("==== STATE CREATED === ");
 
         _file = fopen(maudio, "w");
