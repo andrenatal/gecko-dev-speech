@@ -80,41 +80,9 @@ namespace mozilla {
                                      const Optional<float>& aWeight,
                                      ErrorResult& aRv)
     {
+        mgram = ToNewUTF8String(aString);
 
-        printf("=== SpeechGrammarList::AddFromString Writing grammar \n " );
-
-
-        // get temp folder
-        nsCOMPtr<nsIFile> tmpFile;
-        nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile));
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-           aRv.Throw(NS_ERROR_FILE_NOT_FOUND);
-           return;
-        }
-
-        rv = tmpFile->Append(NS_LITERAL_STRING("grm.jsgf") );
-        //NS_ENSURE_SUCCESS_VOID(rv);
-
-        // write the grammar
-        FILE* fpgram;
-
-        rv = tmpFile->OpenANSIFileDesc("w", &fpgram);
-        //NS_ENSURE_SUCCESS_VOID(rv);
-        nsCString mgramdata = NS_ConvertUTF16toUTF8(aString);
-
-        fwrite(mgramdata.get(),sizeof(char) , mgramdata.Length() , fpgram);
-
-        fclose(fpgram);
-
-
-        nsString aStringPath;
-        tmpFile->GetPath(aStringPath);
-        mgram = ToNewUTF8String(aStringPath);
-
-        tmpFile = NULL;
-        fpgram = NULL;
-
-        printf("=== Grammar written to path %s === \n " , mgram);
+        printf("=== Grammar set  %s === \n " , mgram);
 
         return;
     }

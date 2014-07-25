@@ -105,6 +105,9 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::ProcessAudioSegment(int32_t aSampleRate, AudioSegment* aAudioSegment)
   {
+
+    GeckoProcessType type = XRE_GetProcessType();
+
     if (!mSpeexState) {
         mSpeexState = speex_resampler_init(1,  aSampleRate, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
         printf("==== STATE CREATED === ");
@@ -154,10 +157,6 @@ namespace mozilla {
     speex_resampler_destroy(mSpeexState);
     mSpeexState= NULL;
 
-
-
-
-
     printf("==== SOUNDEND() DECODING SPEECH. OPENING FILE === \n");
     _file = fopen(maudio, "r");
     printf("==== SOUNDEND() DECODING RAW === \n");
@@ -177,15 +176,14 @@ namespace mozilla {
       printf("ERROR hyp()");
       hypoValue.AssignASCII("");
     } else {
-      printf("OK hyp(): ");
-      printf(hyp);
+      printf("OK hyp(): %s - score %i" , hyp , score);
       hypoValue.AssignASCII(hyp);
     }
 
 
     printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== \n");
     alternative->mTranscript =   hypoValue;
-    alternative->mConfidence = 0.0f;
+    alternative->mConfidence = score;
 
     result->mItems.AppendElement(alternative);
     resultList->mItems.AppendElement(result);
@@ -208,25 +206,11 @@ namespace mozilla {
     if (aSpeechGramarList)
     {
        mgram = aSpeechGramarList->mgram;
-       printf("==== Creating grammar. on path  %s  === \n" , mgram);
+       int result = ps_set_jsgf_string(ps, "name" , mgram);
+       ps_set_search(ps, "name");
 
-       // parse the grammar
-        jsgf_rule_iter_t *itor;
-        jsgf_t * gram = jsgf_parse_file(aSpeechGramarList->mgram, NULL);
-        jsgf_rule_t * rule = NULL;
-        for (itor = jsgf_rule_iter(gram); itor; itor = jsgf_rule_iter_next(itor)) {
-            rule = jsgf_rule_iter_rule(itor);
-            if (jsgf_rule_public(rule))
-                 break;
-        }
-
-        if (rule)
-        {
-           fsg_model_t * m = jsgf_build_fsg(gram, rule, ps_get_logmath(ps), 6.5);
-           ps_set_fsg(ps, "name", m);
-           ps_set_search(ps, "name");
-        }
-
+       if (result != 0)
+         printf("==== Error setting grammar  === \n" );
     }
     else
     {
