@@ -131,8 +131,8 @@ private:
      if (!decodersane)
      {
        mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
-                                     SpeechRecognitionErrorCode::Network, // TODO different codes?
-                                     NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR test event"));
+                                         SpeechRecognitionErrorCode::Network, // TODO different codes?
+                                         NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR test event"));
      }
 
      grammarsane = false;
@@ -250,9 +250,18 @@ private:
     else
     {
       grammarsane = false;
-      // TEST IF THE DECODER IS SANE, OTHERWISE PREVENT ITS START
       printf("==== aSpeechGramarList is NULL  === \n" );
     }
+
+    if (!grammarsane){
+
+      // TEST IF THE DECODER IS SANE, OTHERWISE PREVENT ITS START
+      mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
+                                        SpeechRecognitionErrorCode::Network, // TODO different codes?
+                                        NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR test event"));
+
+    }
+
 
     return NS_OK;
   }
