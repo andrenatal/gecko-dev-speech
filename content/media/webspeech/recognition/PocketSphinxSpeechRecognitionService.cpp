@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsThreadUtils.h"
-
+#include "nsXPCOMCIDInternal.h"
 #include "PocketSphinxSpeechRecognitionService.h"
 
 #include "SpeechRecognition.h"
@@ -29,29 +29,115 @@ namespace mozilla {
 
   using namespace dom;
 
+
+class DecodeResultTask : public nsRunnable
+{
+public:
+
+  DecodeResultTask( const nsACString& result , WeakPtr<dom::SpeechRecognition> recognition)
+    : mResult(result)
+    , mRecognition(recognition)
+    , mWorkerThread(do_GetCurrentThread())
+  {
+    MOZ_ASSERT(!NS_IsMainThread()); // This should be running on the worker thread
+  }
+
+  NS_IMETHOD Run() {
+    MOZ_ASSERT(NS_IsMainThread()); // This method is supposed to run on the main thread!
+
+    printf(" Dentro da DecodeResultTask mas na Main Thread: \n " );
+
+    // Declare javascript result events
+    nsRefPtr<SpeechEvent> event = new SpeechEvent(mRecognition, SpeechRecognition::EVENT_RECOGNITIONSERVICE_FINAL_RESULT);
+    SpeechRecognitionResultList* resultList = new SpeechRecognitionResultList(mRecognition);
+    SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);
+    SpeechRecognitionAlternative* alternative = new SpeechRecognitionAlternative(mRecognition);
+
+    printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== \n");
+    alternative->mTranscript =  NS_LITERAL_STRING("TESTE MOCOK") ;
+    alternative->mConfidence = 100;
+
+    result->mItems.AppendElement(alternative);
+    resultList->mItems.AppendElement(result);
+
+    event->mRecognitionResultList = resultList;
+    NS_DispatchToMainThread(event);
+
+    // If we don't destroy the thread when we're done with it, it will hang around forever... bad!
+    // But thread->Shutdown must be called from the main thread, not from the thread itself.
+    return mWorkerThread->Shutdown();
+  }
+
+private:
+  nsCString mResult;
+  nsCOMPtr<nsIThread> mWorkerThread;
+  WeakPtr<dom::SpeechRecognition> mRecognition;
+};
+
+class DecodeTask : public nsRunnable
+{
+
+public:
+  DecodeTask(WeakPtr<dom::SpeechRecognition> recogntion)
+    : mRecognition(recogntion)
+  { }
+
+  NS_IMETHOD Run() {
+    printf(" Dentro da THREAD \n ");
+
+
+    nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(NS_LITERAL_CSTRING( ".031PI" ) , mRecognition );
+    return NS_DispatchToMainThread(resultrunnable);
+  }
+
+private:
+  WeakPtr<dom::SpeechRecognition> mRecognition;
+};
+
   NS_IMPL_ISUPPORTS(PocketSphinxSpeechRecognitionService, nsISpeechRecognitionService, nsIObserver)
 
   PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
   {
     printf("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === \n");
+    mSpeexState = nullptr;
 
 
     // FOR B2G PATHS HARDCODED (APPEND /DATA ON THE BEGINING, FOR DESKTOP, ONLY MODELS/ RELATIVE TO ROOT
     config = cmd_ln_init(NULL, ps_args(), TRUE,
                "-hmm", "models/en-us-semi", // acoustic model
-//                "-jsgf", mgram , // initial grammar
                "-dict", "models/dict/cmu07a.dic", // point to yours
                NULL);
      if (config == NULL)
-       printf("ERROR CREATING PSCONFIG");
+     {
+       printf("ERROR CREATING PSCONFIG \n" );
+       decodersane = false;
+     }
+     else
+     {
+       printf("PSCONFIG OK \n");
+       ps = ps_init(config);
+       if (ps == NULL)
+       {
+         printf("ERROR CREATING PSDECODER \n");
+         decodersane = false;
+       }
+       else
+       {
+         printf("PSDECODER OK\n");
+         decodersane = true;
+       }
+     }
 
-     ps = ps_init(config);
-     if (ps == NULL)
-       printf("ERROR CREATING PSDECODER \n");
+     if (!decodersane)
+     {
+       mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
+                                     SpeechRecognitionErrorCode::Network, // TODO different codes?
+                                     NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR test event"));
+     }
+
+     grammarsane = false;
 
      printf("==== CONSTRUCTED  PocketSphinxSpeechRecognitionService === \n");
-
-     mSpeexState = NULL;
 
   }
 
@@ -59,9 +145,12 @@ namespace mozilla {
   {
     printf("==== Destructing PocketSphinxSpeechRecognitionService === \n");
 
-    if (config) config = NULL;
-    if (ps) ps = NULL;
-    if (mSpeexState) mSpeexState = NULL;
+    if (config)
+      free(config);
+    if (ps)
+      free(ps);
+
+    mSpeexState = nullptr;
 
     printf("==== DESTRUCTED PocketSphinxSpeechRecognitionService === \n");
 
@@ -73,66 +162,42 @@ namespace mozilla {
   {
     printf("==== PocketSphinxSpeechRecognitionService::Initialize  === \n");
 
-    if (mSpeexState)
-      mSpeexState = NULL;
-
-    mRecognition = aSpeechRecognition;
-    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-    obs->AddObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC, false);
-    obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
-
-
-    // get temp folder
-    nsCOMPtr<nsIFile> tmpFile;
-    nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      printf("==== NO TEMP FOLDER EXISTS ==== \n");
-       return NS_ERROR_FILE_NOT_FOUND;
+    if (!decodersane)
+    {
+      // TEST IF THE DECODER IS SANE, OTHERWISE PREVENT ITS START
+      mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
+                                  SpeechRecognitionErrorCode::Service_not_allowed, // TODO different codes?
+                                  NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR"));
     }
-    rv = tmpFile->Append(NS_LITERAL_STRING("audio.raw") );
-    nsString aStringPath;
-    tmpFile->GetPath(aStringPath);
-    maudio = ToNewUTF8String(aStringPath);
+    else
+    {
+      if (mSpeexState)
+        mSpeexState = nullptr;
 
-
-    printf("==== END OF PocketSphinxSpeechRecognitionService::Initialize  === \n ");
-
-    tmpFile = NULL;
-
+      mRecognition = aSpeechRecognition;
+      nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+      obs->AddObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC, false);
+      obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
+    }
     return NS_OK;
   }
 
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::ProcessAudioSegment(int32_t aSampleRate, AudioSegment* aAudioSegment)
   {
-
-    GeckoProcessType type = XRE_GetProcessType();
-
     if (!mSpeexState) {
         mSpeexState = speex_resampler_init(1,  aSampleRate, 16000,  SPEEX_RESAMPLER_QUALITY_MAX  ,  nullptr);
-        printf("==== STATE CREATED === ");
-
-        _file = fopen(maudio, "w");
-
+        printf("==== STATE CREATED === \n");
     }
-
-
-  //  printf("==== RESAMPLING CHUNKS === ");
+    //printf("==== RESAMPLING CHUNKS === \n");
     aAudioSegment->ResampleChunks(mSpeexState);
-
 
     AudioSegment::ChunkIterator iterator(*aAudioSegment);
     while (!iterator.IsEnded()) {
-      //printf("==== START ITERATING === ");
-
       const int16_t* audio_data = static_cast<const int16_t*>(iterator->mChannelData[0]);
 
-      fwrite(audio_data,sizeof(int16_t) , iterator->mDuration , _file);
-
-      //printf("==== END ITERATING === ");
       iterator.Next();
     }
-
 
     return NS_OK;
   }
@@ -140,68 +205,30 @@ namespace mozilla {
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::SoundEnd()
   {
-    printf("==== SOUNDEND() ==== \n");
-    fclose(_file);
-
-    // Declare javascript result events
-    nsRefPtr<SpeechEvent> event =
-      new SpeechEvent(mRecognition,
-                      SpeechRecognition::EVENT_RECOGNITIONSERVICE_FINAL_RESULT);
-    SpeechRecognitionResultList* resultList = new SpeechRecognitionResultList(mRecognition);
-    SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);
-    SpeechRecognitionAlternative* alternative = new SpeechRecognitionAlternative(mRecognition);
-    nsString hypoValue;
-
-
     printf("==== SOUNDEND() DESTROYING SPEEX STATE ==== \n");
     speex_resampler_destroy(mSpeexState);
-    mSpeexState= NULL;
+    mSpeexState= nullptr;
 
-    printf("==== SOUNDEND() DECODING SPEECH. OPENING FILE === \n");
-    _file = fopen(maudio, "r");
-    printf("==== SOUNDEND() DECODING RAW === \n");
-    const char *hyp, *uttid;
-    int32 score;
-    int _psrv = ps_decode_raw(ps, _file, NULL, -1);
-    if (_psrv < 0)
-    {
-      printf("ERROR ps_decode_raw");
-    }
-    fclose(_file);
 
-    printf("==== SOUNDEND() GETTING HYP() === \n");
-    hyp = ps_get_hyp(ps, &score, &uttid);
-
-    if (hyp == NULL) {
-      printf("ERROR hyp()");
-      hypoValue.AssignASCII("");
-    } else {
-      printf("OK hyp(): %s - score %i" , hyp , score);
-      hypoValue.AssignASCII(hyp);
+    // To create a new thread, get the thread manager
+    nsCOMPtr<nsIThreadManager> tm = do_GetService(NS_THREADMANAGER_CONTRACTID);
+    nsCOMPtr<nsIThread> mythread;
+    nsresult rv = tm->NewThread(0, 0, getter_AddRefs(mythread));
+    if (NS_FAILED(rv)) {
+       // In case of failure, call back immediately with an empty string which indicates failure
+       return NS_OK;
     }
 
-
-    printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== \n");
-    alternative->mTranscript =   hypoValue;
-    alternative->mConfidence = score;
-
-    result->mItems.AppendElement(alternative);
-    resultList->mItems.AppendElement(result);
-
-    event->mRecognitionResultList = resultList;
-    NS_DispatchToMainThread(event);
-
-
-
-    _file = NULL;
+    nsCOMPtr<nsIRunnable> r = new DecodeTask(mRecognition);
+    mythread->Dispatch(r, nsIEventTarget::DISPATCH_NORMAL);;
 
     return NS_OK;
   }
 
-
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::SetGrammarList(WeakPtr<SpeechGrammarList> aSpeechGramarList)
   {
+
     const char * mgram = NULL;
     if (aSpeechGramarList)
     {
@@ -210,13 +237,22 @@ namespace mozilla {
        ps_set_search(ps, "name");
 
        if (result != 0)
+       {
+         grammarsane = false;
          printf("==== Error setting grammar  === \n" );
+       }
+       else
+       {
+         printf("==== Grammar  OK === \n" );
+         grammarsane = true;
+       }
     }
     else
     {
+      grammarsane = false;
+      // TEST IF THE DECODER IS SANE, OTHERWISE PREVENT ITS START
       printf("==== aSpeechGramarList is NULL  === \n" );
     }
-
 
     return NS_OK;
   }

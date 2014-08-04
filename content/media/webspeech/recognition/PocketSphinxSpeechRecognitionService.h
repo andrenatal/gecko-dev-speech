@@ -52,12 +52,15 @@ private:
   WeakPtr<dom::SpeechRecognition> mRecognition;
   dom::SpeechRecognitionResultList* BuildMockResultList();
   SpeexResamplerState *mSpeexState;
-  FILE *_file;
   ps_decoder_t * ps;
   cmd_ln_t *config;
-  nsCString maudiopath;
   const char * maudio;
+  nsCOMPtr<nsIThread> decoderthread;
+  bool decodersane; // flag to verify if decoder is sane
+  bool grammarsane; // flag to verify if grammar is sane
+
 };
+
 
 } // namespace mozilla
 
