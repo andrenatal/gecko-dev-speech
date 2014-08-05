@@ -650,7 +650,14 @@ SpeechRecognition::SetGrammars(SpeechGrammarList& aArg, ErrorResult& aRv)
   NS_ENSURE_SUCCESS_VOID(rv);
 
   WeakPtr<SpeechGrammarList> weakGrammarPtr =  aArg.asWeakPtr();
-  mRecognitionService->SetGrammarList( weakGrammarPtr );
+  nsresult rv = mRecognitionService->SetGrammarList( weakGrammarPtr );
+
+
+  if (NS_FAILED(rv)) {
+    aRv.Throw(NS_ERROR_NOT_INITIALIZED);
+  }
+
+
   return;
 }
 

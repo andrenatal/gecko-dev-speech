@@ -128,13 +128,6 @@ private:
        }
      }
 
-     if (!decodersane)
-     {
-       mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
-                                         SpeechRecognitionErrorCode::Network, // TODO different codes?
-                                         NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR test event"));
-     }
-
      grammarsane = false;
 
      printf("==== CONSTRUCTED  PocketSphinxSpeechRecognitionService === \n");
@@ -162,12 +155,11 @@ private:
   {
     printf("==== PocketSphinxSpeechRecognitionService::Initialize  === \n");
 
-    if (!decodersane)
+    if (!decodersane || !grammarsane)
     {
-      // TEST IF THE DECODER IS SANE, OTHERWISE PREVENT ITS START
-      mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
-                                  SpeechRecognitionErrorCode::Service_not_allowed, // TODO different codes?
-                                  NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR"));
+      printf("==== Decoder or grammar not sane === \n");
+
+      return NS_ERROR_NOT_INITIALIZED;
     }
     else
     {
@@ -178,8 +170,8 @@ private:
       nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
       obs->AddObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC, false);
       obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
+      return NS_OK;
     }
-    return NS_OK;
   }
 
   NS_IMETHODIMP
@@ -230,7 +222,12 @@ private:
   {
 
     const char * mgram = NULL;
-    if (aSpeechGramarList)
+
+    if (!decodersane)
+    {
+      grammarsane = false;
+    }
+    else if (aSpeechGramarList)
     {
        mgram = aSpeechGramarList->mgram;
        int result = ps_set_jsgf_string(ps, "name" , mgram);
@@ -253,17 +250,8 @@ private:
       printf("==== aSpeechGramarList is NULL  === \n" );
     }
 
-    if (!grammarsane){
+    return  grammarsane ? NS_OK : NS_ERROR_NOT_INITIALIZED;
 
-      // TEST IF THE DECODER IS SANE, OTHERWISE PREVENT ITS START
-      mRecognition->DispatchError(SpeechRecognition::EVENT_RECOGNITIONSERVICE_ERROR,
-                                        SpeechRecognitionErrorCode::Network, // TODO different codes?
-                                        NS_LITERAL_STRING("RECOGNITIONSERVICE_ERROR test event"));
-
-    }
-
-
-    return NS_OK;
   }
 
   NS_IMETHODIMP
