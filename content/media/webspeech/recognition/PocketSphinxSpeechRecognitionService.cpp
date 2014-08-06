@@ -16,6 +16,7 @@
 #include "mozilla/Services.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
+#include "nsMemory.h"
 
 extern "C"
 {
@@ -78,12 +79,41 @@ class DecodeTask : public nsRunnable
 {
 
 public:
-  DecodeTask(WeakPtr<dom::SpeechRecognition> recogntion)
+  DecodeTask(WeakPtr<dom::SpeechRecognition> recogntion , std::vector<int16_t>  * audiovector , ps_decoder_t * ps)
     : mRecognition(recogntion)
+    , mAudiovector(audiovector)
+    , mPs(ps)
   { }
 
   NS_IMETHOD Run() {
     printf(" Dentro da THREAD \n ");
+
+
+    char const *hyp, *uttid;
+    int16 buf[1024];
+    int rv;
+    int32 score;
+
+    rv = ps_start_utt(mPs, "goforward");
+    rv = ps_process_raw(mPs, mAudiovector->data(),  mAudiovector->size(), FALSE, FALSE);
+
+    rv = ps_end_utt(mPs);
+    if (rv < 0)
+    {
+      printf("Error ps_end_utt : \n");
+    }
+    else
+    {
+      hyp = ps_get_hyp(mPs, &score, &uttid);
+      if (hyp == NULL)
+      {
+        printf("Error recognizing : \n");
+      }
+      else
+      {
+        printf("Recognized: %s\n", hyp);
+      }
+    }
 
 
     nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(NS_LITERAL_CSTRING( ".031PI" ) , mRecognition );
@@ -92,6 +122,9 @@ public:
 
 private:
   WeakPtr<dom::SpeechRecognition> mRecognition;
+  ps_decoder_t * mPs;
+  std::vector<int16_t> * mAudiovector;
+
 };
 
   NS_IMPL_ISUPPORTS(PocketSphinxSpeechRecognitionService, nsISpeechRecognitionService, nsIObserver)
@@ -106,6 +139,7 @@ private:
     config = cmd_ln_init(NULL, ps_args(), TRUE,
                "-hmm", "models/en-us-semi", // acoustic model
                "-dict", "models/dict/cmu07a.dic", // point to yours
+               "-rawlogdir", "/temp/", // log
                NULL);
      if (config == NULL)
      {
@@ -129,6 +163,8 @@ private:
      }
 
      grammarsane = false;
+
+
 
      printf("==== CONSTRUCTED  PocketSphinxSpeechRecognitionService === \n");
 
@@ -163,6 +199,8 @@ private:
     }
     else
     {
+      audiovector.clear();
+
       if (mSpeexState)
         mSpeexState = nullptr;
 
@@ -185,12 +223,18 @@ private:
     aAudioSegment->ResampleChunks(mSpeexState);
 
     AudioSegment::ChunkIterator iterator(*aAudioSegment);
-    while (!iterator.IsEnded()) {
-      const int16_t* audio_data = static_cast<const int16_t*>(iterator->mChannelData[0]);
 
-      iterator.Next();
-    }
+    while(!iterator.IsEnded())
+    {
+       mozilla::AudioChunk& chunk = *(iterator);
+       MOZ_ASSERT(chunk.mBuffer);
+       const int16_t* buf = static_cast<const int16_t*>(chunk.mChannelData[0]);
 
+       for(int i=0; i<iterator->mDuration; i++) {
+           audiovector.push_back( (int16_t)buf[i] );
+       }
+       iterator.Next();
+   }
     return NS_OK;
   }
 
@@ -201,7 +245,6 @@ private:
     speex_resampler_destroy(mSpeexState);
     mSpeexState= nullptr;
 
-
     // To create a new thread, get the thread manager
     nsCOMPtr<nsIThreadManager> tm = do_GetService(NS_THREADMANAGER_CONTRACTID);
     nsCOMPtr<nsIThread> mythread;
@@ -211,8 +254,10 @@ private:
        return NS_OK;
     }
 
-    nsCOMPtr<nsIRunnable> r = new DecodeTask(mRecognition);
+    nsCOMPtr<nsIRunnable> r = new DecodeTask(mRecognition , &audiovector , ps );
     mythread->Dispatch(r, nsIEventTarget::DISPATCH_NORMAL);;
+
+
 
     return NS_OK;
   }

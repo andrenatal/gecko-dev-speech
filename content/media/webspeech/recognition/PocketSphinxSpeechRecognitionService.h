@@ -10,7 +10,7 @@
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
 #include "speex/speex_resampler.h"
-
+#include <vector>
 
 extern "C"
 {
@@ -58,7 +58,7 @@ private:
   nsCOMPtr<nsIThread> decoderthread;
   bool decodersane; // flag to verify if decoder is sane
   bool grammarsane; // flag to verify if grammar is sane
-
+  std::vector<int16_t> audiovector;
 };
 
 
