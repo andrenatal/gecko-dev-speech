@@ -35,8 +35,8 @@ class DecodeResultTask : public nsRunnable
 {
 public:
 
-  DecodeResultTask( const nsACString& result , WeakPtr<dom::SpeechRecognition> recognition)
-    : mResult(result)
+  DecodeResultTask( const nsString& hypstring , WeakPtr<dom::SpeechRecognition> recognition)
+    : mResult(hypstring)
     , mRecognition(recognition)
     , mWorkerThread(do_GetCurrentThread())
   {
@@ -55,7 +55,7 @@ public:
     SpeechRecognitionAlternative* alternative = new SpeechRecognitionAlternative(mRecognition);
 
     printf("==== RAISING FINAL RESULT EVENT TO JAVASCRIPT ==== \n");
-    alternative->mTranscript =  NS_LITERAL_STRING("TESTE MOCOK") ;
+    alternative->mTranscript =  mResult ;
     alternative->mConfidence = 100;
 
     result->mItems.AppendElement(alternative);
@@ -70,7 +70,7 @@ public:
   }
 
 private:
-  nsCString mResult;
+  nsString mResult;
   nsCOMPtr<nsIThread> mWorkerThread;
   WeakPtr<dom::SpeechRecognition> mRecognition;
 };
@@ -93,6 +93,7 @@ public:
     int16 buf[1024];
     int rv;
     int32 score;
+    nsString hypoValue;
 
     rv = ps_start_utt(mPs, "goforward");
     rv = ps_process_raw(mPs, mAudiovector->data(),  mAudiovector->size(), FALSE, FALSE);
@@ -107,16 +108,18 @@ public:
       hyp = ps_get_hyp(mPs, &score, &uttid);
       if (hyp == NULL)
       {
+        hypoValue.AssignASCII("ERROR");
         printf("Error recognizing : \n");
       }
       else
       {
+        hypoValue.AssignASCII(hyp);
         printf("Recognized: %s\n", hyp);
       }
     }
 
 
-    nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(NS_LITERAL_CSTRING( ".031PI" ) , mRecognition );
+    nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(hypoValue , mRecognition );
     return NS_DispatchToMainThread(resultrunnable);
   }
 
@@ -138,8 +141,7 @@ private:
     // FOR B2G PATHS HARDCODED (APPEND /DATA ON THE BEGINING, FOR DESKTOP, ONLY MODELS/ RELATIVE TO ROOT
     config = cmd_ln_init(NULL, ps_args(), TRUE,
                "-hmm", "models/en-us-semi", // acoustic model
-               "-dict", "models/dict/cmu07a.dic", // point to yours
-               "-rawlogdir", "/temp/", // log
+               "-dict", "models/dict/cmu07a.dic",
                NULL);
      if (config == NULL)
      {
