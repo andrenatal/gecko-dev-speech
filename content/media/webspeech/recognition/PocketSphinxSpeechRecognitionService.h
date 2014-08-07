@@ -54,7 +54,6 @@ private:
   SpeexResamplerState *mSpeexState;
   ps_decoder_t * ps;
   cmd_ln_t *config;
-  const char * maudio;
   nsCOMPtr<nsIThread> decoderthread;
   bool decodersane; // flag to verify if decoder is sane
   bool grammarsane; // flag to verify if grammar is sane

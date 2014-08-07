@@ -7,6 +7,7 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "PocketSphinxSpeechRecognitionService.h"
+#include "nsIFile.h"
 
 #include "SpeechRecognition.h"
 #include "SpeechRecognitionAlternative.h"
@@ -137,11 +138,24 @@ private:
     printf("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === \n");
     mSpeexState = nullptr;
 
+    // get temp folder
+    nsCOMPtr<nsIFile> tmpFile;
+    nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
+    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING("models//en-us-semi") );
+    nsString aStringAMPath;
+    tmpFile->GetPath(aStringAMPath);
+
+    // get temp folder
+    rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
+    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING( "models//dict//cmu07a.dic") ); //
+    nsString aStringDictPath;
+    tmpFile->GetPath(aStringDictPath);
+
 
     // FOR B2G PATHS HARDCODED (APPEND /DATA ON THE BEGINING, FOR DESKTOP, ONLY MODELS/ RELATIVE TO ROOT
     config = cmd_ln_init(NULL, ps_args(), TRUE,
-               "-hmm", "models/en-us-semi", // acoustic model
-               "-dict", "models/dict/cmu07a.dic",
+               "-hmm", ToNewUTF8String(aStringAMPath)  , // acoustic model
+               "-dict",  ToNewUTF8String(aStringDictPath),
                NULL);
      if (config == NULL)
      {
