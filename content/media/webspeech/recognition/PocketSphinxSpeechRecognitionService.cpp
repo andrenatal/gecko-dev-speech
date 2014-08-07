@@ -79,7 +79,7 @@ class DecodeTask : public nsRunnable
 {
 
 public:
-  DecodeTask(WeakPtr<dom::SpeechRecognition> recogntion , std::vector<int16_t>  * audiovector , ps_decoder_t * ps)
+  DecodeTask(WeakPtr<dom::SpeechRecognition> recogntion , std::vector<int16_t>   audiovector , ps_decoder_t * ps)
     : mRecognition(recogntion)
     , mAudiovector(audiovector)
     , mPs(ps)
@@ -96,7 +96,7 @@ public:
     nsString hypoValue;
 
     rv = ps_start_utt(mPs, "goforward");
-    rv = ps_process_raw(mPs, mAudiovector->data(),  mAudiovector->size(), FALSE, FALSE);
+    rv = ps_process_raw(mPs, &mAudiovector[0], mAudiovector.size(), FALSE, FALSE);
 
     rv = ps_end_utt(mPs);
     if (rv < 0)
@@ -126,7 +126,7 @@ public:
 private:
   WeakPtr<dom::SpeechRecognition> mRecognition;
   ps_decoder_t * mPs;
-  std::vector<int16_t> * mAudiovector;
+  std::vector<int16_t>  mAudiovector;
 
 };
 
@@ -256,7 +256,7 @@ private:
        return NS_OK;
     }
 
-    nsCOMPtr<nsIRunnable> r = new DecodeTask(mRecognition , &audiovector , ps );
+    nsCOMPtr<nsIRunnable> r = new DecodeTask(mRecognition , audiovector , ps );
     mythread->Dispatch(r, nsIEventTarget::DISPATCH_NORMAL);;
 
 

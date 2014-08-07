@@ -5,6 +5,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
+DIRS += ['../../models/', ] 
+
+
 LOCAL_INCLUDES += [
     '/media/sphinxbase',
 ]
@@ -88,5 +91,7 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 CXXFLAGS += [
  '-nostdinc'
 ]
+
+
 
 FINAL_LIBRARY = 'xul'
