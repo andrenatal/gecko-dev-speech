@@ -141,13 +141,13 @@ private:
     // get temp folder
     nsCOMPtr<nsIFile> tmpFile;
     nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
-    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING("models//en-us-semi") );
+    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING("models/en-us-semi") );
     nsString aStringAMPath;
     tmpFile->GetPath(aStringAMPath);
 
     // get temp folder
     rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
-    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING( "models//dict//cmu07a.dic") ); //
+    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING( "models/dict/cmu07a.dic") ); //
     nsString aStringDictPath;
     tmpFile->GetPath(aStringDictPath);
 
