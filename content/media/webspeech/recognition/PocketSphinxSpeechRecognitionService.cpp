@@ -91,7 +91,6 @@ public:
 
 
     char const *hyp, *uttid;
-    int16 buf[1024];
     int rv;
     int32 score;
     nsString hypoValue;

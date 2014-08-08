@@ -104,6 +104,7 @@
 @BINPATH@/run-mozilla.sh
 @BINPATH@/mozilla-xremote-client
 #endif
+@BINPATH@/models/
 
 ; [Components]
 @BINPATH@/components/components.manifest
