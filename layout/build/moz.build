@@ -125,6 +125,7 @@ if CONFIG['MOZ_B2G_BT']:
 
 if CONFIG['MOZ_WEBSPEECH']:
     LOCAL_INCLUDES += [
+        '/content/media/webspeech/recognition',
         '/content/media/webspeech/synth',
     ]
 
@@ -133,5 +134,7 @@ if CONFIG['MOZ_FFMPEG']:
         '/content/media/fmp4/ffmpeg/include',
     ]
 
+if CONFIG['MOZ_GSTREAMER']:
+	CXXFLAGS += CONFIG['GSTREAMER_CFLAGS']
 
 FINAL_LIBRARY = 'xul'

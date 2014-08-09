@@ -649,8 +649,8 @@ SpeechRecognition::SetGrammars(SpeechGrammarList& aArg, ErrorResult& aRv)
   mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
   NS_ENSURE_SUCCESS_VOID(rv);
 
-  WeakPtr<SpeechGrammarList> weakGrammarPtr =  aArg.asWeakPtr();
-  nsresult rv = mRecognitionService->SetGrammarList( weakGrammarPtr );
+  
+  nsresult rv = mRecognitionService->SetGrammarList( &aArg );
 
 
   if (NS_FAILED(rv)) {
@@ -739,19 +739,15 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
     return;
   }
 
-
   printf("==== STARTING SpeechRecognition() ... === \n");
-
-
-  rv = mRecognitionService->Initialize(this);
 
   nsAutoCString speechRecognitionServiceCID;
   GetRecognitionServiceCID(speechRecognitionServiceCID);
   mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+  rv = mRecognitionService->Initialize(this);
+
   NS_ENSURE_SUCCESS_VOID(rv);
 
-  rv = mRecognitionService->Initialize(this->asWeakPtr());
-  NS_ENSURE_SUCCESS_VOID(rv);
 
   MediaStreamConstraints constraints;
   constraints.mAudio.SetAsBoolean() = true;

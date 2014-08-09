@@ -11,13 +11,14 @@
 
 native SpeechRecognitionWeakPtr(mozilla::WeakPtr<mozilla::dom::SpeechRecognition>);
 [ptr] native AudioSegmentPtr(mozilla::AudioSegment);
-native SpeechGrammarListWeakPtr(mozilla::WeakPtr<mozilla::dom::SpeechGrammarList>);
+[ptr] native SpeechGrammarListPtr(mozilla::dom::SpeechGrammarList);
+
 
 [uuid(857f3fa2-a980-4d3e-a959-a2f53af74232)]
 interface nsISpeechRecognitionService : nsISupports {
     void initialize(in SpeechRecognitionWeakPtr aSpeechRecognition);
     void processAudioSegment(in long aSampleRate , in AudioSegmentPtr aAudioSegment);
-    void setGrammarList(in SpeechGrammarListWeakPtr aSpeechGramarList);
+    void setGrammarList(in SpeechGrammarListPtr aSpeechGramarList);
     void soundEnd();
     void abort();
 };

@@ -137,16 +137,16 @@ private:
     printf("==== CONSTRUCTING  PocketSphinxSpeechRecognitionService === \n");
     mSpeexState = nullptr;
 
-    // get temp folder
+    // get root folder
     nsCOMPtr<nsIFile> tmpFile;
-    nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
-    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING("models/en-us-semi") );
+    NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
+    tmpFile->AppendRelativePath(NS_LITERAL_STRING("models/en-us-semi") );
     nsString aStringAMPath;
     tmpFile->GetPath(aStringAMPath);
 
-    // get temp folder
-    rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
-    rv = tmpFile->AppendRelativePath(NS_LITERAL_STRING( "models/dict/cmu07a.dic") ); //
+    // get root folder again
+    NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
+    tmpFile->AppendRelativePath(NS_LITERAL_STRING( "models/dict/cmu07a.dic") ); //
     nsString aStringDictPath;
     tmpFile->GetPath(aStringDictPath);
 
@@ -235,7 +235,7 @@ private:
         printf("==== STATE CREATED === \n");
     }
     //printf("==== RESAMPLING CHUNKS === \n");
-    aAudioSegment->ResampleChunks(mSpeexState);
+    aAudioSegment->ResampleChunks(mSpeexState, aSampleRate , 16000);
 
     AudioSegment::ChunkIterator iterator(*aAudioSegment);
 
@@ -278,7 +278,7 @@ private:
   }
 
   NS_IMETHODIMP
-  PocketSphinxSpeechRecognitionService::SetGrammarList(WeakPtr<SpeechGrammarList> aSpeechGramarList)
+  PocketSphinxSpeechRecognitionService::SetGrammarList(SpeechGrammarList *aSpeechGramarList)
   {
 
     const char * mgram = NULL;

@@ -46,7 +46,7 @@ FakeSpeechRecognitionService::ProcessAudioSegment(int32_t aSampleRate,AudioSegme
 }
 
 NS_IMETHODIMP
-FakeSpeechRecognitionService::SetGrammarList(WeakPtr<SpeechGrammarList> aSpeechGramarList)
+  FakeSpeechRecognitionService::SetGrammarList(SpeechGrammarList *aSpeechGramarList)
 {
   return NS_OK;
 }
