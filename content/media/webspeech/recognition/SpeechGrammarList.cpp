@@ -12,10 +12,13 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsXPCOMStrings.h"
-
+#include "nsISpeechRecognitionService.h"
 
 namespace mozilla {
   namespace dom {
+
+    #define PREFERENCE_DEFAULT_RECOGNITION_SERVICE "media.webspeech.service.default"
+    #define DEFAULT_RECOGNITION_SERVICE "pocketsphinx"
 
     NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(SpeechGrammarList, mParent)
     NS_IMPL_CYCLE_COLLECTING_ADDREF(SpeechGrammarList)
@@ -28,6 +31,26 @@ namespace mozilla {
     SpeechGrammarList::SpeechGrammarList(nsISupports* aParent)
       : mParent(aParent)
     {
+      printf("=== SpeechGrammarList::SpeechGrammarList === \n " );
+
+      nsAutoCString speechRecognitionServiceCID;
+      nsresult rv;
+      nsAdoptingCString prefValue =
+        Preferences::GetCString(PREFERENCE_DEFAULT_RECOGNITION_SERVICE);
+      nsAutoCString speechRecognitionService;
+      if (!prefValue.get() || prefValue.IsEmpty()) {
+        speechRecognitionService = DEFAULT_RECOGNITION_SERVICE;
+      } else {
+        speechRecognitionService = prefValue;
+      }
+      speechRecognitionServiceCID =
+        NS_LITERAL_CSTRING(NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX) +
+        speechRecognitionService;
+
+      nsCOMPtr<nsISpeechRecognitionService> mRecognitionService;
+      mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+      NS_ENSURE_SUCCESS_VOID(rv);
+
       SetIsDOMBinding();
     }
 
@@ -39,6 +62,8 @@ namespace mozilla {
     SpeechGrammarList::Constructor(const GlobalObject& aGlobal,
                                    ErrorResult& aRv)
     {
+      printf("=== SpeechGrammarList::Constructor === \n " );
+
       return new SpeechGrammarList(aGlobal.GetAsSupports());
     }
 
@@ -81,8 +106,29 @@ namespace mozilla {
                                      ErrorResult& aRv)
     {
         mgram = ToNewUTF8String(aString);
+        printf("=== SpeechGrammarList::AddFromString  %s === \n " , mgram);
 
-        printf("=== Grammar set  %s === \n " , mgram);
+        nsAutoCString speechRecognitionServiceCID;
+        nsresult rv;
+        nsAdoptingCString prefValue =
+          Preferences::GetCString(PREFERENCE_DEFAULT_RECOGNITION_SERVICE);
+        nsAutoCString speechRecognitionService;
+        if (!prefValue.get() || prefValue.IsEmpty()) {
+          speechRecognitionService = DEFAULT_RECOGNITION_SERVICE;
+        } else {
+          speechRecognitionService = prefValue;
+        }
+        speechRecognitionServiceCID =
+          NS_LITERAL_CSTRING(NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX) +
+          speechRecognitionService;
+
+        nsCOMPtr<nsISpeechRecognitionService> mRecognitionService;
+        mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
+        mRecognitionService->SetGrammarList(this);
+        NS_ENSURE_SUCCESS_VOID(rv);
+
+        printf("=== Ending SpeechGrammarList::AddFromString  %s === \n " , mgram);
+
 
         return;
     }
