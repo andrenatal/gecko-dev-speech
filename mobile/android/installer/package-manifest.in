@@ -90,6 +90,8 @@
 @BINPATH@/res/drawable-hdpi
 @BINPATH@/res/layout
 @BINPATH@/distribution/*
+@BINPATH@/models/dict/*
+@BINPATH@/models/en-us-semi/*
 
 [browser]
 ; [Base Browser Files]
