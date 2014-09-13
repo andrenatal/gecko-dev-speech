@@ -142,6 +142,7 @@
 @BINPATH@/mozilla-xremote-client
 #endif
 #endif
+@BINPATH@/models/
 
 ; [Components]
 @BINPATH@/browser/components/components.manifest

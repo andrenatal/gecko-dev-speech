@@ -1733,3 +1733,7 @@ pref("experiments.supported", true);
 
 // Enable the OpenH264 plugin support in the addon manager.
 pref("media.gmp-gmpopenh264.provider.enabled", true);
+
+// Enable Web Speech recognition API
+pref("media.webspeech.recognition.enable", true);
+pref("media.webspeech.service.default", "pocketsphinx");
