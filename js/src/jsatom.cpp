@@ -360,7 +360,7 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const CharT *tbchars, size_t length, I
 }
 
 template JSAtom *
-AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, InternBehavior ib);
+AtomizeAndCopyChars(ExclusiveContext *cx, const char16_t *tbchars, size_t length, InternBehavior ib);
 
 template JSAtom *
 AtomizeAndCopyChars(ExclusiveContext *cx, const Latin1Char *tbchars, size_t length, InternBehavior ib);
@@ -403,22 +403,6 @@ js::AtomizeString(ExclusiveContext *cx, JSString *str,
 }
 
 JSAtom *
-js::AtomizeSubstring(ExclusiveContext *cx, JSString *str, size_t start, size_t length,
-                     InternBehavior ib /* = DoNotInternAtom */)
-{
-    JS_ASSERT(start + length <= str->length());
-
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-
-    JS::AutoCheckCannotGC nogc;
-    return linear->hasLatin1Chars()
-           ? AtomizeAndCopyChars(cx, linear->latin1Chars(nogc) + start, length, ib)
-           : AtomizeAndCopyChars(cx, linear->twoByteChars(nogc) + start, length, ib);
-}
-
-JSAtom *
 js::Atomize(ExclusiveContext *cx, const char *bytes, size_t length, InternBehavior ib)
 {
     CHECK_REQUEST(cx);
@@ -446,16 +430,16 @@ template JSAtom *
 js::AtomizeChars(ExclusiveContext *cx, const Latin1Char *chars, size_t length, InternBehavior ib);
 
 template JSAtom *
-js::AtomizeChars(ExclusiveContext *cx, const jschar *chars, size_t length, InternBehavior ib);
+js::AtomizeChars(ExclusiveContext *cx, const char16_t *chars, size_t length, InternBehavior ib);
 
 bool
 js::IndexToIdSlow(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
 {
     JS_ASSERT(index > JSID_INT_MAX);
 
-    jschar buf[UINT32_CHAR_BUFFER_LENGTH];
-    RangedPtr<jschar> end(ArrayEnd(buf), buf, ArrayEnd(buf));
-    RangedPtr<jschar> start = BackfillIndexInCharBuffer(index, end);
+    char16_t buf[UINT32_CHAR_BUFFER_LENGTH];
+    RangedPtr<char16_t> end(ArrayEnd(buf), buf, ArrayEnd(buf));
+    RangedPtr<char16_t> start = BackfillIndexInCharBuffer(index, end);
 
     JSAtom *atom = AtomizeChars(cx, start.get(), end - start);
     if (!atom)
@@ -528,7 +512,7 @@ js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
         JS::AutoCheckCannotGC nogc;
         return atomp->hasLatin1Chars()
                ? xdr->codeChars(atomp->latin1Chars(nogc), length)
-               : xdr->codeChars(const_cast<jschar*>(atomp->twoByteChars(nogc)), length);
+               : xdr->codeChars(const_cast<char16_t*>(atomp->twoByteChars(nogc)), length);
     }
 
     /* Avoid JSString allocation for already existing atoms. See bug 321985. */
@@ -547,15 +531,15 @@ js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
     } else {
 #if IS_LITTLE_ENDIAN
         /* Directly access the little endian chars in the XDR buffer. */
-        const jschar *chars = reinterpret_cast<const jschar *>(xdr->buf.read(length * sizeof(jschar)));
+        const char16_t *chars = reinterpret_cast<const char16_t *>(xdr->buf.read(length * sizeof(char16_t)));
         atom = AtomizeChars(cx, chars, length);
 #else
         /*
          * We must copy chars to a temporary buffer to convert between little and
          * big endian data.
          */
-        jschar *chars;
-        jschar stackChars[256];
+        char16_t *chars;
+        char16_t stackChars[256];
         if (length <= ArrayLength(stackChars)) {
             chars = stackChars;
         } else {
@@ -564,7 +548,7 @@ js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
              * most allocations here will be bigger than tempLifoAlloc's default
              * chunk size.
              */
-            chars = cx->runtime()->pod_malloc<jschar>(length);
+            chars = cx->runtime()->pod_malloc<char16_t>(length);
             if (!chars)
                 return false;
         }

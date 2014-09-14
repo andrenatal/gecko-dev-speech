@@ -251,6 +251,8 @@ WebappsActor.prototype = {
     reg._readManifests([{ id: aId }]).then((aResult) => {
       let manifest = aResult[0].manifest;
       aApp.name = manifest.name;
+      aApp.csp = manifest.csp || "";
+      aApp.role = manifest.role || "";
       reg.updateAppHandlers(null, manifest, aApp);
 
       reg._saveApps().then(() => {
@@ -804,7 +806,8 @@ WebappsActor.prototype = {
     let deferred = promise.defer();
 
     if (Services.appinfo.ID &&
-        Services.appinfo.ID != "{3c2e2abc-06d4-11e1-ac3b-374f68613e61}") {
+        Services.appinfo.ID != "{3c2e2abc-06d4-11e1-ac3b-374f68613e61}" &&
+        Services.appinfo.ID != "xpcshell@tests.mozilla.org") {
       return { error: "notSupported",
                message: "Not B2G. Can't launch app." };
     }

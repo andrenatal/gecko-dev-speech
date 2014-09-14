@@ -275,11 +275,6 @@ public:
 
   void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
 
-  int64_t GetEndMediaTime() const {
-    AssertCurrentThreadInMonitor();
-    return mEndTime;
-  }
-
   // Returns the shared state machine thread.
   nsIEventTarget* GetStateMachineThread() const;
 
@@ -364,7 +359,7 @@ protected:
 
   class WakeDecoderRunnable : public nsRunnable {
   public:
-    WakeDecoderRunnable(MediaDecoderStateMachine* aSM)
+    explicit WakeDecoderRunnable(MediaDecoderStateMachine* aSM)
       : mMutex("WakeDecoderRunnable"), mStateMachine(aSM) {}
     NS_IMETHOD Run() MOZ_OVERRIDE
     {

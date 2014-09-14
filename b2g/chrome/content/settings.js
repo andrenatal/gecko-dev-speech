@@ -194,6 +194,24 @@ SettingsListener.observe('devtools.overlay', false, (value) => {
   }
 });
 
+#ifdef MOZ_WIDGET_GONK
+let LogShake;
+SettingsListener.observe('devtools.logshake', false, (value) => {
+  if (value) {
+    if (!LogShake) {
+      let scope = {};
+      Cu.import('resource://gre/modules/LogShake.jsm', scope);
+      LogShake = scope.LogShake;
+    }
+    LogShake.init();
+  } else {
+    if (LogShake) {
+      LogShake.uninit();
+    }
+  }
+});
+#endif
+
 // =================== Device Storage ====================
 SettingsListener.observe('device.storage.writable.name', 'sdcard', function(value) {
   if (Services.prefs.getPrefType('device.storage.writable.name') != Ci.nsIPrefBranch.PREF_STRING) {
@@ -307,6 +325,9 @@ setUpdateTrackingId();
 (function setupAccessibility() {
   let accessibilityScope = {};
   SettingsListener.observe("accessibility.screenreader", false, function(value) {
+    if (!value) {
+      return;
+    }
     if (!('AccessFu' in accessibilityScope)) {
       Cu.import('resource://gre/modules/accessibility/AccessFu.jsm',
                 accessibilityScope);
@@ -394,6 +415,46 @@ setUpdateTrackingId();
   });
 })();
 
+// ================ Theme selection ============
+// theme.selected holds the manifest url of the currently used theme.
+SettingsListener.observe("theme.selected",
+                         "app://default_theme.gaiamobile.org/manifest.webapp",
+                         function(value) {
+  if (!value) {
+    return;
+  }
+
+  let newTheme;
+  try {
+    let enabled = Services.prefs.getBoolPref("dom.mozApps.themable");
+    if (!enabled) {
+      return;
+    }
+
+    // Make sure this is a url, and only keep the host part to set the pref.
+    let uri = Services.io.newURI(value, null, null);
+    // We only support overriding in the app:// protocol handler.
+    if (uri.scheme !== "app") {
+      return;
+    }
+    newTheme = uri.host;
+  } catch(e) {
+    return;
+  }
+
+  let currentTheme;
+  try {
+    currentTheme = Services.prefs.getCharPref('dom.mozApps.selected_theme');
+  } catch(e) {};
+
+  if (currentTheme != newTheme) {
+    debug("New theme selected " + value);
+    Services.prefs.setCharPref('dom.mozApps.selected_theme', newTheme);
+    Services.prefs.savePrefFile(null);
+    Services.obs.notifyObservers(null, 'app-theme-changed', newTheme);
+  }
+});
+
 // =================== Various simple mapping  ======================
 let settingsToObserve = {
   'app.update.channel': {
@@ -454,6 +515,10 @@ let settingsToObserve = {
   'ril.sms.strict7BitEncoding.enabled': {
     prefName: 'dom.sms.strict7BitEncoding',
     defaultValue: false
+  },
+  'ril.sms.maxReadAheadEntries': {
+    prefName: 'dom.sms.maxReadAheadEntries',
+    defaultValue: 7
   },
   'ui.touch.radius.leftmm': {
     resetToPref: true

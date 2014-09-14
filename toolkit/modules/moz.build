@@ -12,7 +12,6 @@ MOCHITEST_CHROME_MANIFESTS += ['tests/chrome/chrome.ini']
 SPHINX_TREES['toolkit_modules'] = 'docs'
 
 EXTRA_JS_MODULES += [
-    'AsyncShutdown.jsm',
     'Battery.jsm',
     'BinarySearch.jsm',
     'BrowserUtils.jsm',
@@ -61,7 +60,6 @@ EXTRA_JS_MODULES += [
 
 EXTRA_PP_JS_MODULES += [
     'CertUtils.jsm',
-    'GMPInstallManager.jsm',
     'ResetProfile.jsm',
     'Services.jsm',
     'Troubleshoot.jsm',
@@ -72,6 +70,7 @@ EXTRA_PP_JS_MODULES += [
 
 if 'Android' != CONFIG['OS_TARGET']:
     EXTRA_PP_JS_MODULES += [
+        'GMPInstallManager.jsm',
         'LightweightThemeConsumer.jsm',
     ]
 

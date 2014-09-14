@@ -90,6 +90,12 @@ TreeWalker::NextChild()
         return NextChild();
       }
     }
+
+    // XXX We really should never get here, it means we're trying to find an
+    // accessible for a dom node where iterating over its parent's children
+    // doesn't return it. However this sometimes happens when we're asked for
+    // the nearest accessible to place holder content which we ignore.
+    mAnchorNode = parent;
   }
 
   return nullptr;

@@ -64,7 +64,7 @@ public:
   {}
 
   void Begin(const nsIntRect& aTargetBounds, ScreenRotation aRotation,
-             const nsIntRect& aClientBounds, dom::ScreenOrientation aOrientation)
+             dom::ScreenOrientation aOrientation)
   {
     mOpen = true;
     mTargetBounds = aTargetBounds;
@@ -76,7 +76,6 @@ public:
       mRotationChanged = true;
     }
     mTargetRotation = aRotation;
-    mClientBounds = aClientBounds;
     mTargetOrientation = aOrientation;
   }
   void MarkSyncTransaction()
@@ -141,7 +140,6 @@ public:
   ShadowableLayerSet mMutants;
   nsIntRect mTargetBounds;
   ScreenRotation mTargetRotation;
-  nsIntRect mClientBounds;
   dom::ScreenOrientation mTargetOrientation;
   bool mSwapRequired;
 
@@ -186,12 +184,11 @@ ShadowLayerForwarder::~ShadowLayerForwarder()
 void
 ShadowLayerForwarder::BeginTransaction(const nsIntRect& aTargetBounds,
                                        ScreenRotation aRotation,
-                                       const nsIntRect& aClientBounds,
                                        dom::ScreenOrientation aOrientation)
 {
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(mTxn->Finished(), "uncommitted txn?");
-  mTxn->Begin(aTargetBounds, aRotation, aClientBounds, aOrientation);
+  mTxn->Begin(aTargetBounds, aRotation, aOrientation);
 }
 
 static PLayerChild*
@@ -609,8 +606,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
     common.animations() = mutant->GetAnimations();
     common.invalidRegion() = mutant->GetInvalidRegion();
     common.metrics() = mutant->GetAllFrameMetrics();
-    common.backgroundColor() = mutant->GetBackgroundColor();
-    common.contentDescription() = mutant->GetContentDescription();
     attrs.specific() = null_t();
     mutant->FillSpecificAttributes(attrs.specific());
 
@@ -637,7 +632,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
 
   TargetConfig targetConfig(mTxn->mTargetBounds,
                             mTxn->mTargetRotation,
-                            mTxn->mClientBounds,
                             mTxn->mTargetOrientation,
                             aRegionToClear);
 

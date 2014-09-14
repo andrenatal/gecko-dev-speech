@@ -39,7 +39,7 @@ nsCounterUseNode::InitTextFrame(nsGenConList* aList,
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -235,10 +235,6 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
         new nsCounterChangeNode(aFrame, aType, aCounterData->mValue, aIndex);
 
     nsCounterList *counterList = CounterListFor(aCounterData->mCounter);
-    if (!counterList) {
-        NS_NOTREACHED("CounterListFor failed (should only happen on OOM)");
-        return false;
-    }
 
     counterList->Insert(node);
     if (!counterList->IsLast(node)) {
@@ -312,7 +308,7 @@ nsCounterManager::SetAllCounterStylesDirty()
 }
 
 struct DestroyNodesData {
-    DestroyNodesData(nsIFrame *aFrame)
+    explicit DestroyNodesData(nsIFrame *aFrame)
         : mFrame(aFrame)
         , mDestroyedAny(false)
     {

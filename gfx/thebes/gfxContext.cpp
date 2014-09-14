@@ -24,6 +24,7 @@
 #include "GeckoProfiler.h"
 #include "gfx2DGlue.h"
 #include "mozilla/gfx/PathHelpers.h"
+#include "mozilla/gfx/DrawTargetTiled.h"
 #include <algorithm>
 
 #if CAIRO_HAS_DWRITE_FONT
@@ -430,38 +431,9 @@ gfxContext::DrawSurface(gfxASurface *surface, const gfxSize& size)
 
 // transform stuff
 void
-gfxContext::Translate(const gfxPoint& pt)
-{
-  Matrix newMatrix = mTransform;
-  ChangeTransform(newMatrix.Translate(Float(pt.x), Float(pt.y)));
-}
-
-void
-gfxContext::Scale(gfxFloat x, gfxFloat y)
-{
-  Matrix newMatrix = mTransform;
-  ChangeTransform(newMatrix.Scale(Float(x), Float(y)));
-}
-
-void
-gfxContext::Rotate(gfxFloat angle)
-{
-  Matrix rotation = Matrix::Rotation(Float(angle));
-  ChangeTransform(rotation * mTransform);
-}
-
-void
 gfxContext::Multiply(const gfxMatrix& matrix)
 {
   ChangeTransform(ToMatrix(matrix) * mTransform);
-}
-
-void
-gfxContext::MultiplyAndNudgeToIntegers(const gfxMatrix& matrix)
-{
-  Matrix transform = ToMatrix(matrix) * mTransform;
-  transform.NudgeToIntegers();
-  ChangeTransform(transform);
 }
 
 void
@@ -470,24 +442,10 @@ gfxContext::SetMatrix(const gfxMatrix& matrix)
   ChangeTransform(ToMatrix(matrix));
 }
 
-void
-gfxContext::IdentityMatrix()
-{
-  ChangeTransform(Matrix());
-}
-
 gfxMatrix
 gfxContext::CurrentMatrix() const
 {
   return ThebesMatrix(mTransform);
-}
-
-void
-gfxContext::NudgeCurrentMatrixToIntegers()
-{
-  gfxMatrix matrix = ThebesMatrix(mTransform);
-  matrix.NudgeToIntegers();
-  ChangeTransform(ToMatrix(matrix));
 }
 
 gfxPoint
@@ -968,44 +926,15 @@ gfxContext::GetPattern()
 
 // masking
 void
-gfxContext::Mask(gfxPattern *pattern)
+gfxContext::Mask(SourceSurface* aSurface, const Matrix& aTransform)
 {
-  if (pattern->Extend() == gfxPattern::EXTEND_NONE) {
-    // In this situation the mask will be fully transparent (i.e. nothing
-    // will be drawn) outside of the bounds of the surface. We can support
-    // that by clipping out drawing to that area.
-    Point offset;
-    if (pattern->IsAzure()) {
-      // This is an Azure pattern. i.e. this was the result of a PopGroup and
-      // then the extend mode was changed to EXTEND_NONE.
-      // XXX - We may need some additional magic here in theory to support
-      // device offsets in these patterns, but no problems have been observed
-      // yet because of this. And it would complicate things a little further.
-      offset = Point(0.f, 0.f);
-    } else if (pattern->GetType() == gfxPattern::PATTERN_SURFACE) {
-      nsRefPtr<gfxASurface> asurf = pattern->GetSurface();
-      gfxPoint deviceOffset = asurf->GetDeviceOffset();
-      offset = Point(-deviceOffset.x, -deviceOffset.y);
+  Matrix old = mTransform;
+  Matrix mat = aTransform * mTransform;
 
-      // this lets GetAzureSurface work
-      pattern->GetPattern(mDT);
-    }
-
-    if (pattern->IsAzure() || pattern->GetType() == gfxPattern::PATTERN_SURFACE) {
-      RefPtr<SourceSurface> mask = pattern->GetAzureSurface();
-      Matrix mat = ToMatrix(pattern->GetInverseMatrix());
-      Matrix old = mTransform;
-      // add in the inverse of the pattern transform so that when we
-      // MaskSurface we are transformed to the place matching the pattern transform
-      mat = mat * mTransform;
-
-      ChangeTransform(mat);
-      mDT->MaskSurface(GeneralPattern(this), mask, offset, DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
-      ChangeTransform(old);
-      return;
-    }
-  }
-  mDT->Mask(GeneralPattern(this), *pattern->GetPattern(mDT), DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
+  ChangeTransform(mat);
+  mDT->MaskSurface(GeneralPattern(this), aSurface, Point(),
+                   DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
+  ChangeTransform(old);
 }
 
 void
@@ -1054,9 +983,8 @@ gfxContext::Paint(gfxFloat alpha)
 
     IntSize surfSize = state.sourceSurface->GetSize();
 
-    Matrix mat;
-    mat.Translate(-state.deviceOffset.x, -state.deviceOffset.y);
-    mDT->SetTransform(mat);
+    mDT->SetTransform(Matrix::Translation(-state.deviceOffset.x,
+                                          -state.deviceOffset.y));
 
     mDT->DrawSurface(state.sourceSurface,
                      Rect(state.sourceSurfaceDeviceOffset, Size(surfSize.width, surfSize.height)),
@@ -1093,7 +1021,7 @@ static gfxRect
 GetRoundOutDeviceClipExtents(gfxContext* aCtx)
 {
   gfxContextMatrixAutoSaveRestore save(aCtx);
-  aCtx->IdentityMatrix();
+  aCtx->SetMatrix(gfxMatrix());
   gfxRect r = aCtx->GetClipExtents();
   r.RoundOut();
   return r;
@@ -1118,12 +1046,32 @@ gfxContext::PushGroupAndCopyBackground(gfxContentType content)
 
     Point offset = CurrentState().deviceOffset - oldDeviceOffset;
     Rect surfRect(0, 0, Float(mDT->GetSize().width), Float(mDT->GetSize().height));
-    Rect sourceRect = surfRect;
-    sourceRect.x += offset.x;
-    sourceRect.y += offset.y;
+    Rect sourceRect = surfRect + offset;
 
     mDT->SetTransform(Matrix());
-    mDT->DrawSurface(source, surfRect, sourceRect);
+
+    // XXX: It's really sad that we have to do this (for performance).
+    // Once DrawTarget gets a PushLayer API we can implement this within
+    // DrawTargetTiled.
+    if (source->GetType() == SurfaceType::TILED) {
+      SnapshotTiled *sourceTiled = static_cast<SnapshotTiled*>(source.get());
+      for (uint32_t i = 0; i < sourceTiled->mSnapshots.size(); i++) {
+        Rect tileSourceRect = sourceRect.Intersect(Rect(sourceTiled->mOrigins[i].x,
+                                                        sourceTiled->mOrigins[i].y,
+                                                        sourceTiled->mSnapshots[i]->GetSize().width,
+                                                        sourceTiled->mSnapshots[i]->GetSize().height));
+
+        if (tileSourceRect.IsEmpty()) {
+          continue;
+        }
+        Rect tileDestRect = tileSourceRect - offset;
+        tileSourceRect -= sourceTiled->mOrigins[i];
+
+        mDT->DrawSurface(sourceTiled->mSnapshots[i], tileDestRect, tileSourceRect);
+      }
+    } else {
+      mDT->DrawSurface(source, surfRect, sourceRect);
+    }
     mDT->SetOpaqueRect(oldDT->GetOpaqueRect());
 
     PushClipsToDT(mDT);
@@ -1143,13 +1091,29 @@ gfxContext::PopGroup()
 
   Matrix mat = mTransform;
   mat.Invert();
+  mat.PreTranslate(deviceOffset.x, deviceOffset.y); // device offset translation
 
-  Matrix deviceOffsetTranslation;
-  deviceOffsetTranslation.Translate(deviceOffset.x, deviceOffset.y);
-
-  nsRefPtr<gfxPattern> pat = new gfxPattern(src, deviceOffsetTranslation * mat);
+  nsRefPtr<gfxPattern> pat = new gfxPattern(src, mat);
 
   return pat.forget();
+}
+
+TemporaryRef<SourceSurface>
+gfxContext::PopGroupToSurface(Matrix* aTransform)
+{
+  RefPtr<SourceSurface> src = mDT->Snapshot();
+  Point deviceOffset = CurrentState().deviceOffset;
+
+  Restore();
+
+  Matrix mat = mTransform;
+  mat.Invert();
+
+  Matrix deviceOffsetTranslation;
+  deviceOffsetTranslation.PreTranslate(deviceOffset.x, deviceOffset.y);
+
+  *aTransform = deviceOffsetTranslation * mat;
+  return src;
 }
 
 void
@@ -1166,10 +1130,9 @@ gfxContext::PopGroupToSource()
 
   Matrix mat = mTransform;
   mat.Invert();
+  mat.PreTranslate(deviceOffset.x, deviceOffset.y); // device offset translation
 
-  Matrix deviceOffsetTranslation;
-  deviceOffsetTranslation.Translate(deviceOffset.x, deviceOffset.y);
-  CurrentState().surfTransform = deviceOffsetTranslation * mat;
+  CurrentState().surfTransform = mat;
 }
 
 bool
@@ -1598,9 +1561,8 @@ gfxContext::GetDeviceOffset() const
 Matrix
 gfxContext::GetDeviceTransform() const
 {
-  Matrix mat;
-  mat.Translate(-CurrentState().deviceOffset.x, -CurrentState().deviceOffset.y);
-  return mat;
+  return Matrix::Translation(-CurrentState().deviceOffset.x,
+                             -CurrentState().deviceOffset.y);
 }
 
 Matrix

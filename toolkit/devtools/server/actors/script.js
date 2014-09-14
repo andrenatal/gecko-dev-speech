@@ -4032,8 +4032,9 @@ DebuggerServer.ObjectActorPreviewers.Object = [
       preview.modifiers = modifiers;
 
       props.push("key", "charCode", "keyCode");
-    } else if (aRawObj instanceof Ci.nsIDOMTransitionEvent ||
-               aRawObj instanceof Ci.nsIDOMAnimationEvent) {
+    } else if (aRawObj instanceof Ci.nsIDOMTransitionEvent) {
+      props.push("propertyName", "pseudoElement");
+    } else if (aRawObj instanceof Ci.nsIDOMAnimationEvent) {
       props.push("animationName", "pseudoElement");
     } else if (aRawObj instanceof Ci.nsIDOMClipboardEvent) {
       props.push("clipboardData");
@@ -5347,7 +5348,14 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
       channel.loadFlags = aOptions.loadFromCache
         ? channel.LOAD_FROM_CACHE
         : channel.LOAD_BYPASS_CACHE;
-      channel.asyncOpen(streamListener, null);
+      try {
+        channel.asyncOpen(streamListener, null);
+      } catch(e) {
+        deferred.reject(new Error("Request failed for '"
+                                  + url
+                                  + "': "
+                                  + e.message));
+      }
       break;
   }
 
@@ -5420,7 +5428,7 @@ function getInnerId(window) {
                 getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
 };
 
-const symbolProtoToString = Symbol.prototype.toString;
+const symbolProtoToString = typeof Symbol === "function" ? Symbol.prototype.toString : null;
 
 function getSymbolName(symbol) {
   const name = symbolProtoToString.call(symbol).slice("Symbol(".length, -1);

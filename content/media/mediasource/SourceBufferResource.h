@@ -46,7 +46,7 @@ class SourceBuffer;
 class SourceBufferResource MOZ_FINAL : public MediaResource
 {
 public:
-  SourceBufferResource(const nsACString& aType);
+  explicit SourceBufferResource(const nsACString& aType);
   virtual nsresult Close() MOZ_OVERRIDE;
   virtual void Suspend(bool aCloseImmediately) MOZ_OVERRIDE { UNIMPLEMENTED(); }
   virtual void Resume() MOZ_OVERRIDE { UNIMPLEMENTED(); }
@@ -119,6 +119,12 @@ public:
 
   // Remove data from resource before the given offset.
   void EvictBefore(uint64_t aOffset);
+
+#if defined(DEBUG)
+  void Dump(const char* aPath) {
+    mInputBuffer.Dump(aPath);
+  }
+#endif
 
 private:
   ~SourceBufferResource();

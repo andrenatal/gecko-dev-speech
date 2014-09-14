@@ -48,9 +48,10 @@
 
 extern "C" {
 #include "ccsdp.h"
-#include "vcm.h"
+#include "ccapi.h"
 #include "cip_mmgr_mediadefinitions.h"
 #include "cip_Sipcc_CodecMask.h"
+#include "peer_connection_types.h"
 
 extern void lsm_start_multipart_tone_timer (vcm_tones_t tone,
                                             uint32_t delay,
@@ -70,13 +71,6 @@ static int vcmEnsureExternalCodec(
 }//end extern "C"
 
 static const char* logTag = "VcmSipccBinding";
-
-// Cloned from ccapi.h
-typedef enum {
-    CC_AUDIO_1,
-    CC_VIDEO_1,
-    CC_DATACHANNEL_1
-} cc_media_cap_name;
 
 #define SIPSDP_ILBC_MODE20 20
 
@@ -1102,6 +1096,31 @@ int vcmRxStart(cc_mcapid_t mcap_id,
 }
 
 
+void vcmOnRemoteStreamAdded(cc_call_handle_t call_handle,
+                            const char* peer_connection_handle,
+                            vcm_media_remote_track_table_t *sipcc_stream_table) {
+  sipcc::PeerConnectionWrapper wrapper(peer_connection_handle);
+
+  if (wrapper.impl()) {
+    // TODO: We are copying between structs that are almost identical here.
+    // Seems kinda wasteful.
+    MediaStreamTable pc_stream_table;
+    memset(&pc_stream_table, 0, sizeof(pc_stream_table));
+    pc_stream_table.media_stream_id = sipcc_stream_table->media_stream_id;
+
+    // TODO: This was hard-coded to 1 before, is this safe?
+    pc_stream_table.num_tracks = sipcc_stream_table->num_tracks;
+    for (size_t i = 0; i < pc_stream_table.num_tracks; ++i) {
+      pc_stream_table.track[i].media_stream_track_id =
+        sipcc_stream_table->track[i].media_stream_track_id;
+      // TODO: This was hard-coded to false before, do we even need this member?
+      pc_stream_table.track[i].video = sipcc_stream_table->track[i].video;
+    }
+
+    wrapper.impl()->OnRemoteStreamAdded(pc_stream_table);
+  }
+}
+
 /**
  *  start rx stream
  *  Same concept as vcmRxStart but for ICE/PeerConnection-based flows
@@ -1719,12 +1738,11 @@ static int vcmEnsureExternalCodec(
 
     // Register H.264 codec.
     if (send) {
-	VideoEncoder* encoder = nullptr;
+      VideoEncoder* encoder = nullptr;
 #ifdef MOZ_WEBRTC_OMX
-	encoder = OMXVideoCodec::CreateEncoder(
-	    OMXVideoCodec::CodecType::CODEC_H264);
+      encoder = OMXVideoCodec::CreateEncoder(OMXVideoCodec::CodecType::CODEC_H264);
 #else
-	encoder = mozilla::GmpVideoCodec::CreateEncoder();
+      encoder = mozilla::GmpVideoCodec::CreateEncoder();
 #endif
       if (encoder) {
         return conduit->SetExternalSendCodec(config, encoder);
@@ -2061,6 +2079,7 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
     err = vcmTxCreateVideoConduit(level, payload, pc, attrs, conduit);
     is_video = true;
   } else {
+    mediaType = "unrecognized";
     CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
   }
   if (err) {
@@ -2311,16 +2330,15 @@ int vcmGetH264SupportedPacketizationModes()
  */
 uint32_t vcmGetVideoH264ProfileLevelID()
 {
-  // constrained baseline level 1.2
-  // XXX make variable based on openh264 and OMX support
-#ifdef MOZ_WEBRTC_OMX
+  // For OMX, constrained baseline level 1.2 (via a pref)
   // Max resolution CIF; we should include max-mbps
-  return 0x42E00C;
-#else
-  // XXX See bug 1043515 - we may want to support a higher profile than
-  // 1.3, depending on hardware(?)
-  return 0x42E00D;
-#endif
+  int32_t level = 13; // minimum suggested for WebRTC spec
+
+  vcmGetVideoLevel(0, &level);
+  level &= 0xFF;
+  level |= 0x42E000;
+
+  return (uint32_t) level;
 }
 
 /**
@@ -2786,6 +2804,13 @@ static short vcmGetVideoPref(uint16_t codec,
   return VCM_ERROR;
 }
 
+short vcmGetVideoLevel(uint16_t codec,
+                       int32_t *level) {
+  return vcmGetVideoPref(codec,
+                         "media.navigator.video.h264.level",
+                         level);
+}
+
 short vcmGetVideoMaxFs(uint16_t codec,
                        int32_t *max_fs) {
   return vcmGetVideoPref(codec,
@@ -2828,4 +2853,3 @@ short vcmGetVideoPreferredCodec(int32_t *preferred_codec) {
                          "media.navigator.video.preferred_codec",
                          preferred_codec);
 }
-

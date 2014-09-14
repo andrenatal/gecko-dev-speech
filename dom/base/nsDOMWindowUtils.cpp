@@ -100,6 +100,7 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
 using namespace mozilla::gfx;
@@ -2670,48 +2671,23 @@ nsDOMWindowUtils::SetAsyncScrollOffset(nsIDOMNode* aNode,
   if (!element) {
     return NS_ERROR_INVALID_ARG;
   }
-  nsIFrame* frame = element->GetPrimaryFrame();
-  if (!frame) {
-    return NS_ERROR_UNEXPECTED;
-  }
-  nsIScrollableFrame* scrollable = do_QueryFrame(frame);
-  nsPresContext* presContext = frame->PresContext();
-  nsIFrame* rootScrollFrame = presContext->PresShell()->GetRootScrollFrame();
-  if (!scrollable) {
-    if (rootScrollFrame && rootScrollFrame->GetContent() == element) {
-      frame = rootScrollFrame;
-      scrollable = do_QueryFrame(frame);
-    }
-  }
-  if (!scrollable) {
-    return NS_ERROR_UNEXPECTED;
-  }
-  Layer* layer = FrameLayerBuilder::GetDedicatedLayer(scrollable->GetScrolledFrame(),
-    nsDisplayItem::TYPE_SCROLL_LAYER);
-  if (!layer) {
-    if (rootScrollFrame == frame && !presContext->GetParentPresContext()) {
-      nsIWidget* widget = GetWidget();
-      if (widget) {
-        LayerManager* manager = widget->GetLayerManager();
-        if (manager) {
-          layer = manager->GetRoot();
-        }
-      }
-    }
-    if (!layer) {
-      return NS_ERROR_UNEXPECTED;
-    }
-  }
   FrameMetrics::ViewID viewId;
   if (!nsLayoutUtils::FindIDFor(element, &viewId)) {
     return NS_ERROR_UNEXPECTED;
   }
-  ShadowLayerForwarder* forwarder = layer->Manager()->AsShadowForwarder();
+  nsIWidget* widget = GetWidget();
+  if (!widget) {
+    return NS_ERROR_FAILURE;
+  }
+  LayerManager* manager = widget->GetLayerManager();
+  if (!manager) {
+    return NS_ERROR_FAILURE;
+  }
+  ShadowLayerForwarder* forwarder = manager->AsShadowForwarder();
   if (!forwarder || !forwarder->HasShadowManager()) {
     return NS_ERROR_UNEXPECTED;
   }
-  forwarder->GetShadowManager()->SendSetAsyncScrollOffset(
-    layer->AsShadowableLayer()->GetShadow(), viewId, aX, aY);
+  forwarder->GetShadowManager()->SendSetAsyncScrollOffset(viewId, aX, aY);
   return NS_OK;
 }
 
@@ -3029,30 +3005,65 @@ nsDOMWindowUtils::AreDialogsEnabled(bool* aResult)
 
 NS_IMETHODIMP
 nsDOMWindowUtils::GetFileId(JS::Handle<JS::Value> aFile, JSContext* aCx,
-                            int64_t* aResult)
+                            int64_t* _retval)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
-  if (!aFile.isPrimitive()) {
-    JSObject* obj = aFile.toObjectOrNull();
-
-    indexedDB::IDBMutableFile* mutableFile = nullptr;
-    if (NS_SUCCEEDED(UNWRAP_OBJECT(IDBMutableFile, obj, mutableFile))) {
-      *aResult = mutableFile->GetFileId();
-      return NS_OK;
-    }
-
-    nsISupports* nativeObj =
-      nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj);
-
-    nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(nativeObj);
-    if (blob) {
-      *aResult = blob->GetFileId();
-      return NS_OK;
-    }
+  if (aFile.isPrimitive()) {
+    *_retval = -1;
+    return NS_OK;
   }
 
-  *aResult = -1;
+  JSObject* obj = aFile.toObjectOrNull();
+
+  indexedDB::IDBMutableFile* mutableFile = nullptr;
+  if (NS_SUCCEEDED(UNWRAP_OBJECT(IDBMutableFile, obj, mutableFile))) {
+    *_retval = mutableFile->GetFileId();
+    return NS_OK;
+  }
+
+  nsISupports* nativeObj =
+    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj);
+
+  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(nativeObj);
+  if (blob) {
+    *_retval = blob->GetFileId();
+    return NS_OK;
+  }
+
+  *_retval = -1;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetFilePath(JS::HandleValue aFile, JSContext* aCx,
+                              nsAString& _retval)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  if (aFile.isPrimitive()) {
+    _retval.Truncate();
+    return NS_OK;
+  }
+
+  JSObject* obj = aFile.toObjectOrNull();
+
+  nsISupports* nativeObj =
+    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj);
+
+  nsCOMPtr<nsIDOMFile> file = do_QueryInterface(nativeObj);
+  if (file) {
+    nsString filePath;
+    nsresult rv = file->GetMozFullPathInternal(filePath);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+
+    _retval = filePath;
+    return NS_OK;
+  }
+
+  _retval.Truncate();
   return NS_OK;
 }
 
@@ -3638,6 +3649,23 @@ nsDOMWindowUtils::RunBeforeNextEvent(nsIRunnable *runnable)
 }
 
 NS_IMETHODIMP
+nsDOMWindowUtils::RequestCompositorProperty(const nsAString& property,
+                                            float* aResult)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  if (nsIWidget* widget = GetWidget()) {
+    mozilla::layers::LayerManager* manager = widget->GetLayerManager();
+    if (manager) {
+      *aResult = manager->RequestProperty(property);
+      return NS_OK;
+    }
+  }
+
+  return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
 nsDOMWindowUtils::GetOMTAStyle(nsIDOMElement* aElement,
                                const nsAString& aProperty,
                                nsAString& aResult)
@@ -3703,7 +3731,7 @@ namespace {
 class HandlingUserInputHelper MOZ_FINAL : public nsIJSRAIIHelper
 {
 public:
-  HandlingUserInputHelper(bool aHandlingUserInput);
+  explicit HandlingUserInputHelper(bool aHandlingUserInput);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIJSRAIIHELPER

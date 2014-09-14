@@ -2704,6 +2704,15 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         break;
       }
 
+      // For remote content, capture the event in the parent process at the
+      // <xul:browser remote> element. This will ensure that subsequent mousemove/mouseup
+      // events will continue to be dispatched to this element and therefore forwarded
+      // to the child.
+      if (dispatchedToContentProcess && !nsIPresShell::GetCapturingContent()) {
+        nsIContent* content = mCurrentTarget ? mCurrentTarget->GetContent() : nullptr;
+        nsIPresShell::SetCapturingContent(content, 0);
+      }
+
       nsCOMPtr<nsIContent> activeContent;
       if (nsEventStatus_eConsumeNoDefault != *aStatus) {
         nsCOMPtr<nsIContent> newFocus;      
@@ -3544,7 +3553,7 @@ EventStateManager::SetCursor(int32_t aCursor, imgIContainer* aContainer,
 class MOZ_STACK_CLASS ESMEventCB : public EventDispatchingCallback
 {
 public:
-  ESMEventCB(nsIContent* aTarget) : mTarget(aTarget) {}
+  explicit ESMEventCB(nsIContent* aTarget) : mTarget(aTarget) {}
 
   virtual void HandleEvent(EventChainPostVisitor& aVisitor)
   {

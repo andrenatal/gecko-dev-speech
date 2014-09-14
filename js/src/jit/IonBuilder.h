@@ -10,6 +10,8 @@
 // This file declares the data structures for building a MIRGraph from a
 // JSScript.
 
+#include "mozilla/LinkedList.h"
+
 #include "jit/BytecodeAnalysis.h"
 #include "jit/IonOptimizationLevels.h"
 #include "jit/MIR.h"
@@ -29,7 +31,9 @@ class BaselineFrameInspector;
 BaselineFrameInspector *
 NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame, CompileInfo *info);
 
-class IonBuilder : public MIRGenerator
+class IonBuilder
+  : public MIRGenerator,
+    public mozilla::LinkedListElement<IonBuilder>
 {
     enum ControlStatus {
         ControlStatus_Error,
@@ -343,8 +347,12 @@ class IonBuilder : public MIRGenerator
     MConstant *constant(const Value &v);
     MConstant *constantInt(int32_t i);
 
-    // Filter the type information at tests
-    bool filterTypesAtTest(MTest *test);
+    // Improve the type information at tests
+    bool improveTypesAtTest(MDefinition *ins, bool trueBranch, MTest *test);
+    bool improveTypesAtCompare(MCompare *ins, bool trueBranch, MTest *test);
+    // Used to detect triangular structure at test.
+    bool detectAndOrStructure(MPhi *ins, bool *branchIsTrue);
+    bool replaceTypeSet(MDefinition *subject, types::TemporaryTypeSet *type, MTest *test);
 
     // Add a guard which ensure that the set of type which goes through this
     // generated code correspond to the observed types for the bytecode.
@@ -399,7 +407,8 @@ class IonBuilder : public MIRGenerator
 
     // jsop_getprop() helpers.
     bool checkIsDefinitelyOptimizedArguments(MDefinition *obj, bool *isOptimizedArgs);
-    bool getPropTryInferredConstant(bool *emitted, MDefinition *obj, PropertyName *name);
+    bool getPropTryInferredConstant(bool *emitted, MDefinition *obj, PropertyName *name,
+                                    types::TemporaryTypeSet *types);
     bool getPropTryArgumentsLength(bool *emitted, MDefinition *obj);
     bool getPropTryArgumentsCallee(bool *emitted, MDefinition *obj, PropertyName *name);
     bool getPropTryConstant(bool *emitted, MDefinition *obj, PropertyName *name,
@@ -435,9 +444,9 @@ class IonBuilder : public MIRGenerator
                                    bool isDOM);
     bool setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
                                 PropertyName *name, MDefinition *value,
-                                bool barrier, types::TemporaryTypeSet *objTypes);
+                                types::TemporaryTypeSet *objTypes);
     bool setPropTryInlineAccess(bool *emitted, MDefinition *obj,
-                                PropertyName *name, MDefinition *value, bool barrier,
+                                PropertyName *name, MDefinition *value,
                                 types::TemporaryTypeSet *objTypes);
     bool setPropTryTypedObject(bool *emitted, MDefinition *obj,
                                PropertyName *name, MDefinition *value);
@@ -746,6 +755,7 @@ class IonBuilder : public MIRGenerator
         return inlineHasClasses(callInfo, clasp, nullptr);
     }
     InliningStatus inlineHasClasses(CallInfo &callInfo, const Class *clasp1, const Class *clasp2);
+    InliningStatus inlineIsConstructing(CallInfo &callInfo);
 
     // Testing functions.
     InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);
@@ -802,8 +812,7 @@ class IonBuilder : public MIRGenerator
     JSObject *testSingletonProperty(JSObject *obj, PropertyName *name);
     bool testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, PropertyName *name,
                                     bool *testObject, bool *testString);
-    bool getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name,
-                         types::HeapTypeSetKey *property);
+    uint32_t getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name);
     bool freezePropTypeSets(types::TemporaryTypeSet *types,
                             JSObject *foundProto, PropertyName *name);
 
@@ -937,6 +946,39 @@ class IonBuilder : public MIRGenerator
 
     // If this is an inline builder, the call info for the builder.
     const CallInfo *inlineCallInfo_;
+
+    // When compiling a call with multiple targets, we are first creating a
+    // MGetPropertyCache.  This MGetPropertyCache is following the bytecode, and
+    // is used to recover the JSFunction.  In some cases, the Type of the object
+    // which own the property is enough for dispatching to the right function.
+    // In such cases we do not have read the property, except when the type
+    // object is unknown.
+    //
+    // As an optimization, we can dispatch a call based on the type object,
+    // without doing the MGetPropertyCache.  This is what is achieved by
+    // |IonBuilder::inlineCalls|.  As we might not know all the functions, we
+    // are adding a fallback path, where this MGetPropertyCache would be moved
+    // into.
+    //
+    // In order to build the fallback path, we have to capture a resume point
+    // ahead, for the potential fallback path.  This resume point is captured
+    // while building MGetPropertyCache.  It is capturing the state of Baseline
+    // before the execution of the MGetPropertyCache, such as we can safely do
+    // it in the fallback path.
+    //
+    // This field is used to discard the resume point if it is not used for
+    // building a fallback path.
+
+    // Discard the prior resume point while setting a new MGetPropertyCache.
+    void replaceMaybeFallbackFunctionGetter(MGetPropertyCache *cache);
+
+    // Discard the MGetPropertyCache if it is handled by WrapMGetPropertyCache.
+    void keepFallbackFunctionGetter(MGetPropertyCache *cache) {
+        if (cache == maybeFallbackFunctionGetter_)
+            maybeFallbackFunctionGetter_ = nullptr;
+    }
+
+    MGetPropertyCache *maybeFallbackFunctionGetter_;
 };
 
 class CallInfo

@@ -41,7 +41,7 @@ NS_IMPL_ISUPPORTS0(PromiseNativeHandler)
 class PromiseTask MOZ_FINAL : public nsRunnable
 {
 public:
-  PromiseTask(Promise* aPromise)
+  explicit PromiseTask(Promise* aPromise)
     : mPromise(aPromise)
   {
     MOZ_ASSERT(aPromise);
@@ -325,26 +325,33 @@ Promise::WrapObject(JSContext* aCx)
 already_AddRefed<Promise>
 Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv)
 {
-  AutoJSAPI jsapi;
-  if (!jsapi.Init(aGlobal)) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
+  nsRefPtr<Promise> p = new Promise(aGlobal);
+  p->CreateWrapper(aRv);
+  if (aRv.Failed()) {
     return nullptr;
+  }
+  return p.forget();
+}
+
+void
+Promise::CreateWrapper(ErrorResult& aRv)
+{
+  AutoJSAPI jsapi;
+  if (!jsapi.Init(mGlobal)) {
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return;
   }
   JSContext* cx = jsapi.cx();
 
-  nsRefPtr<Promise> p = new Promise(aGlobal);
-
   JS::Rooted<JS::Value> ignored(cx);
-  if (!WrapNewBindingObject(cx, p, &ignored)) {
+  if (!WrapNewBindingObject(cx, this, &ignored)) {
     JS_ClearPendingException(cx);
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
+    return;
   }
 
   // Need the .get() bit here to get template deduction working right
-  dom::PreserveWrapper(p.get());
-
-  return p.forget();
+  dom::PreserveWrapper(this);
 }
 
 void
@@ -483,8 +490,6 @@ Promise::CreateThenableFunction(JSContext* aCx, Promise* aPromise, uint32_t aTas
 Promise::Constructor(const GlobalObject& aGlobal,
                      PromiseInit& aInit, ErrorResult& aRv)
 {
-  JSContext* cx = aGlobal.Context();
-
   nsCOMPtr<nsIGlobalObject> global;
   global = do_QueryInterface(aGlobal.GetAsSupports());
   if (!global) {
@@ -497,20 +502,34 @@ Promise::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> resolveFunc(cx,
-                                    CreateFunction(cx, aGlobal.Get(), promise,
-                                                   PromiseCallback::Resolve));
-  if (!resolveFunc) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
+  promise->CallInitFunction(aGlobal, aInit, aRv);
+  if (aRv.Failed()) {
     return nullptr;
   }
 
+  return promise.forget();
+}
+
+void
+Promise::CallInitFunction(const GlobalObject& aGlobal,
+                          PromiseInit& aInit, ErrorResult& aRv)
+{
+  JSContext* cx = aGlobal.Context();
+
+  JS::Rooted<JSObject*> resolveFunc(cx,
+                                    CreateFunction(cx, aGlobal.Get(), this,
+                                                   PromiseCallback::Resolve));
+  if (!resolveFunc) {
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return;
+  }
+
   JS::Rooted<JSObject*> rejectFunc(cx,
-                                   CreateFunction(cx, aGlobal.Get(), promise,
+                                   CreateFunction(cx, aGlobal.Get(), this,
                                                   PromiseCallback::Reject));
   if (!rejectFunc) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
+    return;
   }
 
   aInit.Call(resolveFunc, rejectFunc, aRv, CallbackObject::eRethrowExceptions);
@@ -524,13 +543,11 @@ Promise::Constructor(const GlobalObject& aGlobal,
     // function Promise(arg) { try { arg(a, b); } catch (e) { this.reject(e); }}
     if (!JS_WrapValue(cx, &value)) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
+      return;
     }
 
-    promise->MaybeRejectInternal(cx, value);
+    MaybeRejectInternal(cx, value);
   }
-
-  return promise.forget();
 }
 
 /* static */ already_AddRefed<Promise>
@@ -1005,19 +1022,13 @@ Promise::MaybeReportRejected()
     return;
   }
 
-  // Remains null in case of worker.
-  nsCOMPtr<nsPIDOMWindow> win;
-  bool isChromeError = false;
-
+  nsRefPtr<xpc::ErrorReport> xpcReport = new xpc::ErrorReport();
   if (MOZ_LIKELY(NS_IsMainThread())) {
-    nsIPrincipal* principal;
-    win = xpc::WindowGlobalOrNull(obj);
-    principal = nsContentUtils::ObjectPrincipal(obj);
-    isChromeError = nsContentUtils::IsSystemPrincipal(principal);
+    nsIGlobalObject* global = xpc::GetNativeForGlobal(js::GetGlobalForObjectCrossCompartment(obj));
+    xpcReport->Init(report.report(), report.message(), global);
   } else {
-    WorkerPrivate* worker = GetCurrentThreadWorkerPrivate();
-    MOZ_ASSERT(worker);
-    isChromeError = worker->IsChromeWorker();
+    xpcReport->InitOnWorkerThread(report.report(), report.message(),
+                                  GetCurrentThreadWorkerPrivate()->IsChromeWorker());
   }
 
   // Now post an event to do the real reporting async
@@ -1025,11 +1036,7 @@ Promise::MaybeReportRejected()
   // AsyncErrorReporter, otherwise if the call to DispatchToMainThread fails, it
   // will leak. See Bug 958684.
   nsRefPtr<AsyncErrorReporter> r =
-    new AsyncErrorReporter(CycleCollectedJSRuntime::Get()->Runtime(),
-                           report.report(),
-                           report.message(),
-                           isChromeError,
-                           win);
+    new AsyncErrorReporter(CycleCollectedJSRuntime::Get()->Runtime(), xpcReport);
   NS_DispatchToMainThread(r);
 }
 

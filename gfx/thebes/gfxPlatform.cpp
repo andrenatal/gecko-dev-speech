@@ -220,6 +220,7 @@ MemoryPressureObserver::Observe(nsISupports *aSubject,
 {
     NS_ASSERTION(strcmp(aTopic, "memory-pressure") == 0, "unexpected event topic");
     Factory::PurgeAllCaches();
+    gfxGradientCache::PurgeAllCaches();
 
     gfxPlatform::GetPlatform()->PurgeSkiaCache();
     return NS_OK;
@@ -277,6 +278,7 @@ gfxPlatform::gfxPlatform()
     uint32_t contentMask = BackendTypeBit(BackendType::CAIRO);
     InitBackendPrefs(canvasMask, BackendType::CAIRO,
                      contentMask, BackendType::CAIRO);
+    mTotalSystemMemory = mozilla::hal::GetTotalSystemMemory();
 }
 
 gfxPlatform*
@@ -851,14 +853,12 @@ gfxPlatform::InitializeSkiaCacheLimits()
     cacheSizeLimit *= 1024*1024;
 
     if (usingDynamicCache) {
-      uint32_t totalMemory = mozilla::hal::GetTotalSystemMemory();
-
-      if (totalMemory < 512*1024*1024) {
+      if (mTotalSystemMemory < 512*1024*1024) {
         // We need a very minimal cache on anything smaller than 512mb.
         // Note the large jump as we cross 512mb (from 2mb to 32mb).
         cacheSizeLimit = 2*1024*1024;
-      } else if (totalMemory > 0) {
-        cacheSizeLimit = totalMemory / 16;
+      } else if (mTotalSystemMemory > 0) {
+        cacheSizeLimit = mTotalSystemMemory / 16;
       }
     }
 
@@ -905,7 +905,21 @@ gfxPlatform::PurgeSkiaCache()
       return;
 
   mSkiaGlue->GetGrContext()->freeGpuResources();
+  // GrContext::flush() doesn't call glFlush. Call it here.
+  mSkiaGlue->GetGLContext()->MakeCurrent();
+  mSkiaGlue->GetGLContext()->fFlush();
 #endif
+}
+
+bool
+gfxPlatform::HasEnoughTotalSystemMemoryForSkiaGL()
+{
+#ifdef MOZ_WIDGET_GONK
+  if (mTotalSystemMemory < 250*1024*1024) {
+    return false;
+  }
+#endif
+  return true;
 }
 
 TemporaryRef<DrawTarget>
@@ -1071,8 +1085,11 @@ gfxPlatform::UseGraphiteShaping()
 }
 
 gfxFontEntry*
-gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                              const uint8_t *aFontData,
+gfxPlatform::MakePlatformFont(const nsAString& aFontName,
+                              uint16_t aWeight,
+                              int16_t aStretch,
+                              bool aItalic,
+                              const uint8_t* aFontData,
                               uint32_t aLength)
 {
     // Default implementation does not handle activating downloaded fonts;
@@ -1937,7 +1954,7 @@ InitLayersAccelerationPrefs()
     MOZ_ASSERT(NS_IsMainThread(), "can only initialize prefs on the main thread");
 
     gfxPrefs::GetSingleton();
-    sPrefBrowserTabsRemoteAutostart = Preferences::GetBool("browser.tabs.remote.autostart", false);
+    sPrefBrowserTabsRemoteAutostart = BrowserTabsRemoteAutostart();
 
 #ifdef XP_WIN
     if (gfxPrefs::LayersAccelerationForceEnabled()) {

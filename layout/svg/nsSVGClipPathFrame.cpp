@@ -8,13 +8,15 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfxContext.h"
+#include "mozilla/dom/SVGClipPathElement.h"
 #include "nsGkAtoms.h"
 #include "nsRenderingContext.h"
-#include "mozilla/dom/SVGClipPathElement.h"
 #include "nsSVGEffects.h"
 #include "nsSVGUtils.h"
 
+using namespace mozilla;
 using namespace mozilla::dom;
+using namespace mozilla::gfx;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -56,9 +58,20 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
       // We have no children - the spec says clip away everything:
       gfx->Rectangle(gfxRect());
     } else {
-      singleClipPathChild->NotifySVGChanged(
-                             nsISVGChildFrame::TRANSFORM_CHANGED);
-      singleClipPathChild->PaintSVG(aContext, nullptr);
+      nsIFrame* child = do_QueryFrame(singleClipPathChild);
+      nsIContent* childContent = child->GetContent();
+      if (childContent->IsSVG()) {
+        singleClipPathChild->NotifySVGChanged(
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+        gfxMatrix toChildsUserSpace =
+          static_cast<const nsSVGElement*>(childContent)->
+            PrependLocalTransformsTo(mMatrixForChildren,
+                                     nsSVGElement::eUserSpaceToParent);
+        singleClipPathChild->PaintSVG(aContext, toChildsUserSpace);
+      } else {
+        // else, again, clip everything away
+        gfx->Rectangle(gfxRect());
+      }
     }
     gfx->Clip();
     gfx->NewPath();
@@ -110,20 +123,29 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
         }
       }
 
-      SVGFrame->PaintSVG(aContext, nullptr);
+      gfxMatrix toChildsUserSpace = mMatrixForChildren;
+      nsIFrame* child = do_QueryFrame(SVGFrame);
+      nsIContent* childContent = child->GetContent();
+      if (childContent->IsSVG()) {
+        toChildsUserSpace =
+          static_cast<const nsSVGElement*>(childContent)->
+            PrependLocalTransformsTo(mMatrixForChildren,
+                                     nsSVGElement::eUserSpaceToParent);
+      }
+      SVGFrame->PaintSVG(aContext, toChildsUserSpace);
 
       if (clipPathFrame) {
         if (!isTrivial) {
           gfx->PopGroupToSource();
 
-          nsRefPtr<gfxPattern> clipMaskSurface;
           gfx->PushGroup(gfxContentType::ALPHA);
 
           clipPathFrame->ApplyClipOrPaintClipMask(aContext, aClippedFrame, aMatrix);
-          clipMaskSurface = gfx->PopGroup();
+          Matrix maskTransform;
+          RefPtr<SourceSurface> clipMaskSurface = gfx->PopGroupToSurface(&maskTransform);
 
           if (clipMaskSurface) {
-            gfx->Mask(clipMaskSurface);
+            gfx->Mask(clipMaskSurface, maskTransform);
           }
         }
         gfx->Restore();
@@ -135,14 +157,14 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
     if (!referencedClipIsTrivial) {
       gfx->PopGroupToSource();
 
-      nsRefPtr<gfxPattern> clipMaskSurface;
       gfx->PushGroup(gfxContentType::ALPHA);
 
       clipPathFrame->ApplyClipOrPaintClipMask(aContext, aClippedFrame, aMatrix);
-      clipMaskSurface = gfx->PopGroup();
+      Matrix maskTransform;
+      RefPtr<SourceSurface> clipMaskSurface = gfx->PopGroupToSurface(&maskTransform);
 
       if (clipMaskSurface) {
-        gfx->Mask(clipMaskSurface);
+        gfx->Mask(clipMaskSurface, maskTransform);
       }
     }
     gfx->Restore();
@@ -318,7 +340,7 @@ nsSVGClipPathFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGClipPathFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGClipPathFrame::GetCanvasTM()
 {
   return mMatrixForChildren;
 }

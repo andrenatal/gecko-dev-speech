@@ -103,11 +103,14 @@ LayerManagerComposite::ClearCachedResources(Layer* aSubtree)
  * LayerManagerComposite
  */
 LayerManagerComposite::LayerManagerComposite(Compositor* aCompositor)
-: mCompositor(aCompositor)
+: mWarningLevel(0.0f)
+, mUnusedApzTransformWarning(false)
+, mCompositor(aCompositor)
 , mInTransaction(false)
 , mIsCompositorReady(false)
 , mDebugOverlayWantsNextFrame(false)
 , mGeometryChanged(true)
+, mLastFrameMissedHWC(false)
 {
   mTextRenderer = new TextRenderer(aCompositor);
   MOZ_ASSERT(aCompositor);
@@ -346,13 +349,12 @@ LayerManagerComposite::RenderDebugOverlay(const Rect& aBounds)
       mFPS = MakeUnique<FPSState>();
     }
 
+    float alpha = 1;
 #ifdef ANDROID
     // Draw a translation delay warning overlay
     int width;
     int border;
-    float alpha = 1;
-    if ((now - mWarnTime).ToMilliseconds() < 150) {
-      printf_stderr("Draw\n");
+    if ((now - mWarnTime).ToMilliseconds() < kVisualWarningDuration) {
       EffectChain effects;
 
       // Black blorder
@@ -386,6 +388,18 @@ LayerManagerComposite::RenderDebugOverlay(const Rect& aBounds)
 
     float fillRatio = mCompositor->GetFillRatio();
     mFPS->DrawFPS(now, drawFrameColorBars ? 10 : 0, 0, unsigned(fillRatio), mCompositor);
+
+    if (mUnusedApzTransformWarning) {
+      // If we have an unused APZ transform on this composite, draw a 20x20 red box
+      // in the top-right corner
+      EffectChain effects;
+      effects.mPrimaryEffect = new EffectSolidColor(gfx::Color(1, 0, 0, 1));
+      mCompositor->DrawQuad(gfx::Rect(aBounds.width - 20, 0, aBounds.width, 20),
+                            aBounds, effects, alpha, gfx::Matrix4x4());
+
+      mUnusedApzTransformWarning = false;
+      SetDebugOverlayWantsNextFrame(true);
+    }
   } else {
     mFPS = nullptr;
   }
@@ -587,17 +601,20 @@ LayerManagerComposite::Render()
     composer2D = mCompositor->GetWidget()->GetComposer2D();
   }
 
-  if (!mTarget && composer2D && composer2D->TryRender(mRoot, mWorldMatrix, mGeometryChanged)) {
+  if (!mTarget && composer2D && composer2D->TryRender(mRoot, mGeometryChanged)) {
     if (mFPS) {
       double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
       if (gfxPrefs::LayersDrawFPS()) {
         printf_stderr("HWComposer: FPS is %g\n", fps);
       }
     }
-    mCompositor->EndFrameForExternalComposition(mWorldMatrix);
+    mCompositor->EndFrameForExternalComposition(Matrix());
     // Reset the invalid region as compositing is done
     mInvalidRegion.SetEmpty();
+    mLastFrameMissedHWC = false;
     return;
+  } else if (!mTarget) {
+    mLastFrameMissedHWC = !!composer2D;
   }
 
   {
@@ -626,12 +643,11 @@ LayerManagerComposite::Render()
 
   if (mRoot->GetClipRect()) {
     clipRect = *mRoot->GetClipRect();
-    WorldTransformRect(clipRect);
     Rect rect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-    mCompositor->BeginFrame(invalid, &rect, mWorldMatrix, bounds, nullptr, &actualBounds);
+    mCompositor->BeginFrame(invalid, &rect, bounds, nullptr, &actualBounds);
   } else {
     gfx::Rect rect;
-    mCompositor->BeginFrame(invalid, nullptr, mWorldMatrix, bounds, &rect, &actualBounds);
+    mCompositor->BeginFrame(invalid, nullptr, bounds, &rect, &actualBounds);
     clipRect = nsIntRect(rect.x, rect.y, rect.width, rect.height);
   }
 
@@ -691,31 +707,6 @@ LayerManagerComposite::Render()
   mCompositor->GetWidget()->PostRender(this);
 
   RecordFrame();
-}
-
-void
-LayerManagerComposite::SetWorldTransform(const gfx::Matrix& aMatrix)
-{
-  NS_ASSERTION(aMatrix.PreservesAxisAlignedRectangles(),
-               "SetWorldTransform only accepts matrices that satisfy PreservesAxisAlignedRectangles");
-  NS_ASSERTION(!aMatrix.HasNonIntegerScale(),
-               "SetWorldTransform only accepts matrices with integer scale");
-
-  mWorldMatrix = aMatrix;
-}
-
-gfx::Matrix&
-LayerManagerComposite::GetWorldTransform(void)
-{
-  return mWorldMatrix;
-}
-
-void
-LayerManagerComposite::WorldTransformRect(nsIntRect& aRect)
-{
-  gfx::Rect grect(aRect.x, aRect.y, aRect.width, aRect.height);
-  grect = mWorldMatrix.TransformBounds(grect);
-  aRect.SetRect(grect.X(), grect.Y(), grect.Width(), grect.Height());
 }
 
 static void

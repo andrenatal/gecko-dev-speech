@@ -78,10 +78,14 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const MOZ_OVERRIDE;
     virtual bool call(JSContext *cx, HandleObject proxy, const CallArgs &args) const MOZ_OVERRIDE;
     virtual bool construct(JSContext *cx, HandleObject proxy, const CallArgs &args) const MOZ_OVERRIDE;
+    virtual bool hasInstance(JSContext *cx, HandleObject proxy,
+                             MutableHandleValue v, bool *bp) const MOZ_OVERRIDE;
     virtual bool objectClassIs(HandleObject obj, js::ESClassValue classValue,
                                JSContext *cx) const MOZ_OVERRIDE;
     virtual const char* className(JSContext *cx, HandleObject proxy) const MOZ_OVERRIDE;
     virtual void finalize(JSFreeOp *fop, JSObject *proxy) const MOZ_OVERRIDE;
+    virtual bool isCallable(JSObject *obj) const MOZ_OVERRIDE;
+    virtual bool isConstructor(JSObject *obj) const MOZ_OVERRIDE;
 
     static const char family;
     static const CPOWProxyHandler singleton;
@@ -568,6 +572,30 @@ WrapperOwner::callOrConstruct(JSContext *cx, HandleObject proxy, const CallArgs 
     return true;
 }
 
+bool
+CPOWProxyHandler::hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp) const
+{
+    FORWARD(hasInstance, (cx, proxy, v, bp));
+}
+
+bool
+WrapperOwner::hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp)
+{
+    ObjectId objId = idOf(proxy);
+
+    JSVariant vVar;
+    if (!toVariant(cx, v, &vVar))
+        return false;
+
+    ReturnStatus status;
+    JSVariant result;
+    if (!CallHasInstance(objId, vVar, &status, bp))
+        return ipcfail(cx);
+
+    LOG_STACK();
+
+    return ok(cx, status);
+}
 
 bool
 CPOWProxyHandler::objectClassIs(HandleObject proxy, js::ESClassValue classValue, JSContext *cx) const
@@ -618,6 +646,25 @@ void
 CPOWProxyHandler::finalize(JSFreeOp *fop, JSObject *proxy) const
 {
     OwnerOf(proxy)->drop(proxy);
+}
+
+bool
+CPOWProxyHandler::isCallable(JSObject *obj) const
+{
+    return OwnerOf(obj)->isCallable(obj);
+}
+
+bool
+CPOWProxyHandler::isConstructor(JSObject *obj) const
+{
+    return isCallable(obj);
+}
+
+bool
+WrapperOwner::isCallable(JSObject *obj)
+{
+    ObjectId objId = idOf(obj);
+    return !!(objId & OBJECT_IS_CALLABLE);
 }
 
 void
@@ -824,43 +871,38 @@ JSObject *
 WrapperOwner::fromRemoteObjectVariant(JSContext *cx, RemoteObject objVar)
 {
     ObjectId objId = objVar.id();
-
     RootedObject obj(cx, findCPOWById(objId));
-    if (obj) {
-        if (!JS_WrapObject(cx, &obj))
+    if (!obj) {
+        // If we didn't find an existing CPOW, we need to create one.
+        if (objId > MAX_CPOW_IDS) {
+            JS_ReportError(cx, "unusable CPOW id");
             return nullptr;
-        return obj;
+        }
+
+        // All CPOWs live in the privileged junk scope.
+        RootedObject junkScope(cx, xpc::PrivilegedJunkScope());
+        JSAutoCompartment ac(cx, junkScope);
+        RootedValue v(cx, UndefinedValue());
+        obj = NewProxyObject(cx,
+                             &CPOWProxyHandler::singleton,
+                             v,
+                             nullptr,
+                             junkScope);
+        if (!obj)
+            return nullptr;
+
+        if (!cpows_.add(objId, obj))
+            return nullptr;
+
+        // Incref once we know the decref will be called.
+        incref();
+
+        SetProxyExtra(obj, 0, PrivateValue(this));
+        SetProxyExtra(obj, 1, DoubleValue(BitwiseCast<double>(objId)));
     }
 
-    if (objId > MAX_CPOW_IDS) {
-        JS_ReportError(cx, "unusable CPOW id");
+    if (!JS_WrapObject(cx, &obj))
         return nullptr;
-    }
-
-    bool callable = !!(objId & OBJECT_IS_CALLABLE);
-
-    RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
-
-    RootedValue v(cx, UndefinedValue());
-    ProxyOptions options;
-    options.selectDefaultClass(callable);
-    obj = NewProxyObject(cx,
-                         &CPOWProxyHandler::singleton,
-                         v,
-                         nullptr,
-                         global,
-                         options);
-    if (!obj)
-        return nullptr;
-
-    if (!cpows_.add(objId, obj))
-        return nullptr;
-
-    // Incref once we know the decref will be called.
-    incref();
-
-    SetProxyExtra(obj, 0, PrivateValue(this));
-    SetProxyExtra(obj, 1, DoubleValue(BitwiseCast<double>(objId)));
     return obj;
 }
 

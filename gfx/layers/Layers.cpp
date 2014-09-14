@@ -209,8 +209,7 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mScrollbarTargetId(FrameMetrics::NULL_SCROLL_ID),
   mScrollbarDirection(ScrollDirection::NONE),
   mDebugColorIndex(0),
-  mAnimationGeneration(0),
-  mBackgroundColor(0, 0, 0, 0)
+  mAnimationGeneration(0)
 {}
 
 Layer::~Layer()
@@ -632,8 +631,7 @@ Layer::MayResample()
 }
 
 RenderTargetIntRect
-Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
-                            const gfx::Matrix* aWorldTransform)
+Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect)
 {
   ContainerLayer* container = GetParent();
   NS_ASSERTION(container, "This can't be called on the root!");
@@ -682,15 +680,6 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
 
   if (container) {
     scissor.MoveBy(-container->GetIntermediateSurfaceRect().TopLeft());
-  } else if (aWorldTransform) {
-    gfx::Rect r(scissor.x, scissor.y, scissor.width, scissor.height);
-    gfx::Rect trScissor = aWorldTransform->TransformBounds(r);
-    trScissor.Round();
-    nsIntRect tmp;
-    if (!gfxUtils::GfxRectToIntRect(ThebesRect(trScissor), &tmp)) {
-      return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
-    }
-    scissor = RenderTargetPixel::FromUntyped(tmp);
   }
   return currentClip.Intersect(scissor);
 }

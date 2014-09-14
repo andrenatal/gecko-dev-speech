@@ -36,11 +36,10 @@ loop.CallConnectionWebSocket = (function() {
       throw new Error("No websocketToken in options");
     }
 
-    // Save the debug pref now, to avoid getting it each time.
-    if (navigator.mozLoop) {
-      this._debugWebSocket =
-        navigator.mozLoop.getLoopBoolPref("debug.websocket");
-    }
+    // Set loop.debug.sdk to true in the browser, or standalone:
+    // localStorage.setItem("debug.websocket", true);
+    this._debugWebSocket =
+      loop.shared.utils.getBoolPreference("debug.websocket");
 
     _.extend(this, Backbone.Events);
   };
@@ -128,6 +127,39 @@ loop.CallConnectionWebSocket = (function() {
     },
 
     /**
+     * Notifies the server that the user has accepted the call.
+     */
+    accept: function() {
+      this._send({
+        messageType: "action",
+        event: "accept"
+      });
+    },
+
+    /**
+     * Notifies the server that the outgoing media is up, and the
+     * incoming media is being received.
+     */
+    mediaUp: function() {
+      this._send({
+        messageType: "action",
+        event: "media-up"
+      });
+    },
+
+    /**
+     * Notifies the server that the outgoing call is cancelled by the
+     * user.
+     */
+    cancel: function() {
+      this._send({
+        messageType: "action",
+        event: "terminate",
+        reason: "cancel"
+      });
+    },
+
+    /**
      * Sends data on the websocket.
      *
      * @param {Object} data The data to send.
@@ -185,6 +217,7 @@ loop.CallConnectionWebSocket = (function() {
           this._completeConnection();
           break;
         case "progress":
+          this.trigger("progress:" + msg.state);
           this.trigger("progress", msg);
           break;
       }

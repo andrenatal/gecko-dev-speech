@@ -55,18 +55,13 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     if (!info)
         return false;
 
-    RootedValue value(cx, BooleanValue(false));
-    if (!JS_SetProperty(cx, info, "rooting-analysis", value))
+    if (!JS_SetProperty(cx, info, "rooting-analysis", FalseHandleValue))
         return false;
 
-#ifdef JSGC_USE_EXACT_ROOTING
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "exact-rooting", value))
+    if (!JS_SetProperty(cx, info, "exact-rooting", TrueHandleValue))
         return false;
 
+    RootedValue value(cx);
 #ifdef DEBUG
     value = BooleanValue(true);
 #else
@@ -1290,6 +1285,18 @@ SetJitCompilerOption(JSContext *cx, unsigned argc, jsval *vp)
     if (number < 0)
         number = -1;
 
+    // Throw if disabling the JITs and there's JIT code on the stack, to avoid
+    // assertion failures.
+    if ((opt == JSJITCOMPILER_BASELINE_ENABLE || opt == JSJITCOMPILER_ION_ENABLE) &&
+        number == 0)
+    {
+        js::jit::JitActivationIterator iter(cx->runtime());
+        if (!iter.done()) {
+            JS_ReportError(cx, "Can't turn off JITs with JIT code on the stack.");
+            return false;
+        }
+    }
+
     JS_SetGlobalJitCompilerOption(cx->runtime(), opt, uint32_t(number));
 
     args.rval().setUndefined();
@@ -1595,10 +1602,15 @@ static bool
 HelperThreadCount(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
+#ifdef JS_MORE_DETERMINISTIC
+    // Always return 0 to get consistent output with and without --no-threads.
+    args.rval().setInt32(0);
+#else
     if (CanUseExtraThreads())
         args.rval().setInt32(HelperThreadState().threadCount);
     else
         args.rval().setInt32(0);
+#endif
     return true;
 }
 
@@ -1722,7 +1734,7 @@ ReportLargeAllocationFailure(JSContext *cx, unsigned argc, jsval *vp)
 
 namespace heaptools {
 
-typedef UniquePtr<jschar[], JS::FreePolicy> EdgeName;
+typedef UniquePtr<char16_t[], JS::FreePolicy> EdgeName;
 
 // An edge to a node from its predecessor in a path through the graph.
 class BackEdge {
@@ -1899,7 +1911,7 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
     //
     //   { node: undefined, edge: <string> }
     size_t length = nodes.length();
-    RootedObject result(cx, NewDenseAllocatedArray(cx, length));
+    RootedObject result(cx, NewDenseFullyAllocatedArray(cx, length));
     if (!result)
         return false;
     result->ensureDenseInitializedLength(cx, 0, length);
@@ -1946,9 +1958,9 @@ EvalReturningScope(JSContext *cx, unsigned argc, jsval *vp)
     if (!strChars.initTwoByte(cx, str))
         return false;
 
-    mozilla::Range<const jschar> chars = strChars.twoByteRange();
+    mozilla::Range<const char16_t> chars = strChars.twoByteRange();
     size_t srclen = chars.length();
-    const jschar *src = chars.start().get();
+    const char16_t *src = chars.start().get();
 
     JS::AutoFilename filename;
     unsigned lineno;
@@ -1971,6 +1983,19 @@ EvalReturningScope(JSContext *cx, unsigned argc, jsval *vp)
         return false;
 
     args.rval().setObject(*scope);
+    return true;
+}
+
+static bool
+IsSimdAvailable(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+#ifdef JS_CODEGEN_NONE
+    bool available = false;
+#else
+    bool available = cx->jitSupportsSimd();
+#endif
+    args.rval().set(BooleanValue(available));
     return true;
 }
 
@@ -2156,6 +2181,10 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "isAsmJSCompilationAvailable",
 "  Returns whether asm.js compilation is currently available or whether it is disabled\n"
 "  (e.g., by the debugger)."),
+
+    JS_FN_HELP("isSimdAvailable", IsSimdAvailable, 0, 0,
+"isSimdAvailable",
+"  Returns true if SIMD extensions are supported on this platform."),
 
     JS_FN_HELP("getJitCompilerOptions", GetJitCompilerOptions, 0, 0,
 "getCompilerOptions()",

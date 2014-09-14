@@ -27,6 +27,12 @@ TraceParent(JSTracer *trc, void *data)
     static_cast<JavaScriptParent *>(data)->trace(trc);
 }
 
+static void
+FixupParentAfterMovingGC(JSRuntime *rt, void *data)
+{
+    static_cast<JavaScriptParent *>(data)->fixupAfterMovingGC();
+}
+
 JavaScriptParent::JavaScriptParent(JSRuntime *rt)
   : JavaScriptShared(rt),
     JavaScriptBase<PJavaScriptParent>(rt)
@@ -36,6 +42,7 @@ JavaScriptParent::JavaScriptParent(JSRuntime *rt)
 JavaScriptParent::~JavaScriptParent()
 {
     JS_RemoveExtraGCRootsTracer(rt_, TraceParent, this);
+    JS_RemoveMovingGCCallback(rt_, FixupParentAfterMovingGC);
 }
 
 bool
@@ -45,6 +52,7 @@ JavaScriptParent::init()
         return false;
 
     JS_AddExtraGCRootsTracer(rt_, TraceParent, this);
+    JS_AddMovingGCCallback(rt_, FixupParentAfterMovingGC, this);
     return true;
 }
 
@@ -56,8 +64,12 @@ JavaScriptParent::trace(JSTracer *trc)
 }
 
 JSObject *
-JavaScriptParent::defaultScope()
+JavaScriptParent::scopeForTargetObjects()
 {
+    // CPWOWs from the child need to point into the parent's unprivileged junk
+    // scope so that a compromised child cannot compromise the parent. In
+    // practice, this means that a child process can only (a) hold parent
+    // objects alive and (b) invoke them if they are callable.
     return xpc::UnprivilegedJunkScope();
 }
 

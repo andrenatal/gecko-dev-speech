@@ -19,6 +19,7 @@ MoofParser::RebuildFragmentedIndex(const nsTArray<MediaByteRange>& aByteRanges)
   Box box(&context, mOffset);
   for (; box.IsAvailable(); box = box.Next()) {
     if (box.IsType("moov")) {
+      mInitRange = MediaByteRange(0, box.Range().mEnd);
       ParseMoov(box);
     } else if (box.IsType("moof")) {
       Moof moof(box, mTrex, mMdhd);
@@ -36,11 +37,16 @@ MoofParser::RebuildFragmentedIndex(const nsTArray<MediaByteRange>& aByteRanges)
 }
 
 Interval<Microseconds>
-MoofParser::GetCompositionRange()
+MoofParser::GetCompositionRange(const nsTArray<MediaByteRange>& aByteRanges)
 {
   Interval<Microseconds> compositionRange;
+  BoxContext context(mSource, aByteRanges);
   for (size_t i = 0; i < mMoofs.Length(); i++) {
-    compositionRange = compositionRange.Extents(mMoofs[i].mTimeRange);
+    Moof& moof = mMoofs[i];
+    Box box(&context, moof.mRange.mStart);
+    if (box.IsAvailable()) {
+      compositionRange = compositionRange.Extents(moof.mTimeRange);
+    }
   }
   return compositionRange;
 }

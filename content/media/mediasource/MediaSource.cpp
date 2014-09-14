@@ -63,14 +63,19 @@ static const unsigned int MAX_SOURCE_BUFFERS = 16;
 namespace mozilla {
 
 static const char* const gMediaSourceTypes[6] = {
-  "video/webm",
-  "audio/webm",
-// XXX: Disabled other codecs temporarily to allow WebM testing.  For now, set
-// the developer-only media.mediasource.ignore_codecs pref to true to test other
-// codecs, and expect things to be broken.
-#if 0
+// XXX: Disabled other temporarily on desktop to allow WebM testing.  For now,
+// set the developer-only media.mediasource.ignore_codecs pref to true to test
+// other codecs, and expect things to be broken.
+//
+// Disabled WebM in favour of MP4 on Firefox OS.
+#ifdef MOZ_GONK_MEDIACODEC
   "video/mp4",
   "audio/mp4",
+#else
+  "video/webm",
+  "audio/webm",
+#endif
+#if 0
   "audio/mpeg",
 #endif
   nullptr
@@ -334,6 +339,7 @@ MediaSource::Detach()
   }
   mDecoder->DetachMediaSource();
   mDecoder = nullptr;
+  mFirstSourceBufferInitialization = false;
   SetReadyState(MediaSourceReadyState::Closed);
   mDuration = UnspecifiedNaN<double>();
   if (mActiveSourceBuffers) {
@@ -390,6 +396,7 @@ MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   , mDuration(UnspecifiedNaN<double>())
   , mDecoder(nullptr)
   , mReadyState(MediaSourceReadyState::Closed)
+  , mFirstSourceBufferInitialization(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mSourceBuffers = new SourceBufferList(this);
@@ -476,6 +483,43 @@ MediaSource::NotifyEvicted(double aStart, double aEnd)
   // the given range.
   mSourceBuffers->Evict(aStart, aEnd);
 }
+
+void
+MediaSource::QueueInitializationEvent()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!mFirstSourceBufferInitialization) {
+    mFirstSourceBufferInitialization = true;
+  }
+  MSE_DEBUG("MediaSource(%p)::QueueInitializationEvent()", this);
+  nsRefPtr<nsIRunnable> task =
+    NS_NewRunnableMethod(this, &MediaSource::InitializationEvent);
+  NS_DispatchToMainThread(task);
+}
+
+void
+MediaSource::InitializationEvent()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MSE_DEBUG("MediaSource(%p)::InitializationEvent()", this);
+  if (mDecoder) {
+    mDecoder->PrepareReaderInitialization();
+  }
+}
+
+#if defined(DEBUG)
+void
+MediaSource::Dump(const char* aPath)
+{
+  char buf[255];
+  PR_snprintf(buf, sizeof(buf), "%s/mediasource-%p", aPath, this);
+  PR_MkDir(buf, 0700);
+
+  if (mSourceBuffers) {
+    mSourceBuffers->Dump(buf);
+  }
+}
+#endif
 
 nsPIDOMWindow*
 MediaSource::GetParentObject() const

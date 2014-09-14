@@ -293,6 +293,8 @@
 @BINPATH@/components/spellchecker.xpt
 @BINPATH@/components/storage.xpt
 @BINPATH@/components/telemetry.xpt
+@BINPATH@/components/toolkit_asyncshutdown.xpt
+@BINPATH@/components/toolkit_filewatcher.xpt
 @BINPATH@/components/toolkit_finalizationwitness.xpt
 @BINPATH@/components/toolkit_formautofill.xpt
 @BINPATH@/components/toolkit_osfile.xpt
@@ -395,6 +397,8 @@
 @BINPATH@/components/DownloadLegacy.js
 @BINPATH@/components/nsSidebar.manifest
 @BINPATH@/components/nsSidebar.js
+@BINPATH@/components/nsAsyncShutdown.manifest
+@BINPATH@/components/nsAsyncShutdown.js
 
 ; WiFi, NetworkManager, NetworkStats
 #ifdef MOZ_WIDGET_GONK
@@ -441,6 +445,8 @@
 @BINPATH@/components/RILContentHelper.js
 @BINPATH@/components/TelephonyService.js
 @BINPATH@/components/TelephonyService.manifest
+@BINPATH@/components/MobileConnectionGonkService.js
+@BINPATH@/components/MobileConnectionGonkService.manifest
 #endif // MOZ_WIDGET_GONK && MOZ_B2G_RIL
 
 #ifndef MOZ_WIDGET_GONK
@@ -451,6 +457,7 @@
 @BINPATH@/components/amWebInstallListener.js
 @BINPATH@/components/nsBlocklistService.js
 @BINPATH@/components/OopCommandLine.js
+@BINPATH@/components/CommandLine.js
 #endif
 
 #ifdef MOZ_UPDATER
@@ -644,7 +651,7 @@
 ; [Default Preferences]
 ; All the pref files must be part of base to prevent migration bugs
 #ifdef MOZ_MULET
-@BINPATH@/defaults/pref/b2g.js
+@BINPATH@/browser/@PREF_DIR@/b2g.js
 #else
 @BINPATH@/@PREF_DIR@/b2g.js
 #endif
@@ -744,10 +751,10 @@
 @BINPATH@/chrome/pippki.manifest
 
 ; For process sandboxing
+#if defined(MOZ_SANDBOX)
 #if defined(XP_WIN)
 @BINPATH@/@DLL_PREFIX@sandboxbroker@DLL_SUFFIX@
 #elif defined(XP_LINUX)
-#if defined(MOZ_CONTENT_SANDBOX) || defined(MOZ_GMP_SANDBOX)
 @BINPATH@/@DLL_PREFIX@mozsandbox@DLL_SUFFIX@
 #endif
 #endif

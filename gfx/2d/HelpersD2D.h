@@ -44,7 +44,8 @@ static inline D2D1_SIZE_U D2DIntSize(const IntSize &aSize)
   return D2D1::SizeU(aSize.width, aSize.height);
 }
 
-static inline D2D1_RECT_F D2DRect(const Rect &aRect)
+template <typename T>
+static inline D2D1_RECT_F D2DRect(const T &aRect)
 {
   return D2D1::RectF(aRect.x, aRect.y, aRect.XMost(), aRect.YMost());
 }
@@ -523,7 +524,7 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
                       D2D1::BitmapProperties(D2DPixelFormat(aSurface->GetFormat())),
                       byRef(bitmap));
 
-    aSourceTransform.Translate(uploadRect.x, uploadRect.y);
+    aSourceTransform.PreTranslate(uploadRect.x, uploadRect.y);
 
     return bitmap.forget();
   } else {
@@ -569,8 +570,8 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
                       D2D1::BitmapProperties(D2DPixelFormat(aSurface->GetFormat())),
                       byRef(bitmap));
 
-    aSourceTransform.Scale(Float(size.width / newSize.width),
-                           Float(size.height / newSize.height));
+    aSourceTransform.PreScale(Float(size.width / newSize.width),
+                              Float(size.height / newSize.height));
     return bitmap.forget();
   }
 }

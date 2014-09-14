@@ -468,10 +468,11 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
         if (MOZ_UNLIKELY(clasp == &js_NoSuchMethodClass))
             return NoSuchMethod(cx, args.length(), args.base());
 #endif
-        JS_ASSERT_IF(construct, !clasp->construct);
-        if (!clasp->call)
+        JS_ASSERT_IF(construct, !callee.constructHook());
+        JSNative call = callee.callHook();
+        if (!call)
             return ReportIsNotFunction(cx, args.calleev(), args.length() + 1, construct);
-        return CallJSNative(cx, clasp->call, args);
+        return CallJSNative(cx, call, args);
     }
 
     /* Invoke native functions. */
@@ -571,11 +572,11 @@ js::InvokeConstructor(JSContext *cx, CallArgs args)
         return true;
     }
 
-    const Class *clasp = callee.getClass();
-    if (!clasp->construct)
+    JSNative construct = callee.constructHook();
+    if (!construct)
         return ReportIsNotFunction(cx, args.calleev(), args.length() + 1, CONSTRUCT);
 
-    return CallJSNativeConstructor(cx, clasp->construct, args);
+    return CallJSNativeConstructor(cx, construct, args);
 }
 
 bool
@@ -1114,27 +1115,6 @@ JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
 /* See TRY_BRANCH_AFTER_COND. */
 JS_STATIC_ASSERT(JSOP_IFNE_LENGTH == JSOP_IFEQ_LENGTH);
 JS_STATIC_ASSERT(JSOP_IFNE == JSOP_IFEQ + 1);
-
-/*
- * Inline fast paths for iteration. js_IteratorMore and js_IteratorNext handle
- * all cases, but we inline the most frequently taken paths here.
- */
-bool
-js::IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, MutableHandleValue rval)
-{
-    if (iterobj->is<PropertyIteratorObject>()) {
-        NativeIterator *ni = iterobj->as<PropertyIteratorObject>().getNativeIterator();
-        if (ni->isKeyIter()) {
-            *cond = (ni->props_cursor < ni->props_end);
-            return true;
-        }
-    }
-    Rooted<JSObject*> iobj(cx, iterobj);
-    if (!js_IteratorMore(cx, iobj, rval))
-        return false;
-    *cond = rval.isTrue();
-    return true;
-}
 
 bool
 js::IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
@@ -1926,9 +1906,10 @@ CASE(JSOP_MOREITER)
     JS_ASSERT(REGS.stackDepth() >= 1);
     JS_ASSERT(REGS.sp[-1].isObject());
     PUSH_NULL();
+    RootedObject &obj = rootObject0;
+    obj = &REGS.sp[-2].toObject();
     bool cond;
-    MutableHandleValue res = REGS.stackHandleAt(-1);
-    if (!IteratorMore(cx, &REGS.sp[-2].toObject(), &cond, res))
+    if (!js_IteratorMore(cx, obj, &cond))
         goto error;
     REGS.sp[-1].setBoolean(cond);
 }
@@ -2879,7 +2860,7 @@ CASE(JSOP_SETALIASEDVAR)
 
     // Avoid computing the name if no type updates are needed, as this may be
     // expensive on scopes with large numbers of variables.
-    PropertyName *name = (obj.hasSingletonType() && !obj.hasLazyType())
+    PropertyName *name = obj.hasSingletonType()
                          ? ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, REGS.pc)
                          : nullptr;
 
@@ -3071,7 +3052,7 @@ CASE(JSOP_NEWARRAY)
     unsigned count = GET_UINT24(REGS.pc);
     RootedObject &obj = rootObject0;
     NewObjectKind newKind = UseNewTypeForInitializer(script, REGS.pc, &ArrayObject::class_);
-    obj = NewDenseAllocatedArray(cx, count, nullptr, newKind);
+    obj = NewDenseFullyAllocatedArray(cx, count, nullptr, newKind);
     if (!obj || !SetInitializerObjectType(cx, script, REGS.pc, obj, newKind))
         goto error;
 

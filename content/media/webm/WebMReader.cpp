@@ -157,6 +157,7 @@ WebMReader::WebMReader(AbstractMediaDecoder* aDecoder)
   mAudioTrack(0),
   mAudioStartUsec(-1),
   mAudioFrames(0),
+  mLastVideoFrameTime(0),
   mAudioCodec(-1),
   mVideoCodec(-1),
   mHasVideo(false),
@@ -878,13 +879,10 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
     }
     PushVideoPacket(next_holder.disown());
   } else {
-    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
-    int64_t endTime = mDecoder->GetEndMediaTime();
-    if (endTime == -1) {
-      return false;
-    }
-    next_tstamp = endTime * NS_PER_USEC;
+    next_tstamp = tstamp;
+    next_tstamp += tstamp - mLastVideoFrameTime;
   }
+  mLastVideoFrameTime = tstamp;
 
   int64_t tstamp_usecs = tstamp / NS_PER_USEC;
   for (uint32_t i = 0; i < count; ++i) {

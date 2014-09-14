@@ -124,13 +124,13 @@ class gcstats::StatisticsSerializer
         needComma_ = true;
     }
 
-    jschar *finishJSString() {
+    char16_t *finishJSString() {
         char *buf = finishCString();
         if (!buf)
             return nullptr;
 
         size_t nchars = strlen(buf);
-        jschar *out = js_pod_malloc<jschar>(nchars + 1);
+        char16_t *out = js_pod_malloc<char16_t>(nchars + 1);
         if (!out) {
             oom_ = true;
             js_free(buf);
@@ -335,6 +335,8 @@ Statistics::gcDuration(int64_t *total, int64_t *maxPause)
         if (slice->duration() > *maxPause)
             *maxPause = slice->duration();
     }
+    if (*maxPause > maxPauseInInterval)
+        maxPauseInInterval = *maxPause;
 }
 
 void
@@ -424,7 +426,7 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
     return !ss.isOOM();
 }
 
-jschar *
+char16_t *
 Statistics::formatMessage()
 {
     StatisticsSerializer ss(StatisticsSerializer::AsText);
@@ -432,7 +434,7 @@ Statistics::formatMessage()
     return ss.finishJSString();
 }
 
-jschar *
+char16_t *
 Statistics::formatJSON(uint64_t timestamp)
 {
     StatisticsSerializer ss(StatisticsSerializer::AsJSON);
@@ -448,6 +450,7 @@ Statistics::Statistics(JSRuntime *rt)
     gcDepth(0),
     nonincrementalReason(nullptr),
     preBytes(0),
+    maxPauseInInterval(0),
     phaseNestingDepth(0),
     sliceCallback(nullptr)
 {
@@ -493,10 +496,25 @@ Statistics::~Statistics()
 }
 
 JS::GCSliceCallback
-Statistics::setSliceCallback(JS::GCSliceCallback newCallback) {
+Statistics::setSliceCallback(JS::GCSliceCallback newCallback)
+{
     JS::GCSliceCallback oldCallback = sliceCallback;
     sliceCallback = newCallback;
     return oldCallback;
+}
+
+int64_t
+Statistics::clearMaxGCPauseAccumulator()
+{
+    int64_t prior = maxPauseInInterval;
+    maxPauseInInterval = 0;
+    return prior;
+}
+
+int64_t
+Statistics::getMaxGCPauseSinceClear()
+{
+    return maxPauseInInterval;
 }
 
 void

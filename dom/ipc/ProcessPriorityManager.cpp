@@ -232,7 +232,7 @@ class ParticularProcessPriorityManager MOZ_FINAL
 {
   ~ParticularProcessPriorityManager();
 public:
-  ParticularProcessPriorityManager(ContentParent* aContentParent);
+  explicit ParticularProcessPriorityManager(ContentParent* aContentParent);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
@@ -995,7 +995,7 @@ ParticularProcessPriorityManager::ComputePriority()
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }
 
-  AudioChannelService* service = AudioChannelService::GetAudioChannelService();
+  AudioChannelService* service = AudioChannelService::GetOrCreateAudioChannelService();
   if (service->ProcessContentOrNormalChannelIsActive(ChildID())) {
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }

@@ -148,6 +148,50 @@ describe("loop.CallConnectionWebSocket", function() {
       });
     });
 
+    describe("#accept", function() {
+      it("should send an accept message to the server", function() {
+        callWebSocket.promiseConnect();
+
+        callWebSocket.accept();
+
+        sinon.assert.calledOnce(dummySocket.send);
+        sinon.assert.calledWithExactly(dummySocket.send, JSON.stringify({
+          messageType: "action",
+          event: "accept"
+        }));
+      });
+    });
+
+    describe("#mediaUp", function() {
+      it("should send a media-up message to the server", function() {
+        callWebSocket.promiseConnect();
+
+        callWebSocket.mediaUp();
+
+        sinon.assert.calledOnce(dummySocket.send);
+        sinon.assert.calledWithExactly(dummySocket.send, JSON.stringify({
+          messageType: "action",
+          event: "media-up"
+        }));
+      });
+    });
+
+    describe("#cancel", function() {
+      it("should send a terminate message to the server with a reason of cancel",
+        function() {
+          callWebSocket.promiseConnect();
+
+          callWebSocket.cancel();
+
+          sinon.assert.calledOnce(dummySocket.send);
+          sinon.assert.calledWithExactly(dummySocket.send, JSON.stringify({
+            messageType: "action",
+            event: "terminate",
+            reason: "cancel"
+          }));
+        });
+    });
+
     describe("Events", function() {
       beforeEach(function() {
         sandbox.stub(callWebSocket, "trigger");
@@ -167,8 +211,23 @@ describe("loop.CallConnectionWebSocket", function() {
             data: JSON.stringify(eventData)
           });
 
-          sinon.assert.calledOnce(callWebSocket.trigger);
+          sinon.assert.called(callWebSocket.trigger);
           sinon.assert.calledWithExactly(callWebSocket.trigger, "progress", eventData);
+        });
+
+        it("should trigger a progress:<state> event on the callWebSocket", function() {
+          var eventData = {
+            messageType: "progress",
+            state: "terminate",
+            reason: "reject"
+          };
+
+          dummySocket.onmessage({
+            data: JSON.stringify(eventData)
+          });
+
+          sinon.assert.called(callWebSocket.trigger);
+          sinon.assert.calledWithExactly(callWebSocket.trigger, "progress:terminate");
         });
       });
 

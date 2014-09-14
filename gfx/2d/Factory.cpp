@@ -178,7 +178,16 @@ Factory::HasSSE2()
   // cl.exe with -arch:SSE2 (default on x64 compiler)
   return true;
 #elif defined(HAVE_CPU_DETECTION)
-  return HasCPUIDBit(1u, edx, (1u<<26));
+  static enum {
+    UNINITIALIZED,
+    NO_SSE2,
+    HAS_SSE2
+  } sDetectionState = UNINITIALIZED;
+
+  if (sDetectionState == UNINITIALIZED) {
+    sDetectionState = HasCPUIDBit(1u, edx, (1u<<26)) ? HAS_SSE2 : NO_SSE2;
+  }
+  return sDetectionState == HAS_SSE2;
 #else
   return false;
 #endif
@@ -691,7 +700,8 @@ Factory::CreateWrappingDataSourceSurface(uint8_t *aData, int32_t aStride,
 
 TemporaryRef<DataSourceSurface>
 Factory::CreateDataSourceSurface(const IntSize &aSize,
-                                 SurfaceFormat aFormat)
+                                 SurfaceFormat aFormat,
+                                 bool aZero)
 {
   if (!CheckSurfaceSize(aSize)) {
     gfxWarning() << "CreateDataSourceSurface failed with bad size";
@@ -699,7 +709,7 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
   }
 
   RefPtr<SourceSurfaceAlignedRawData> newSurf = new SourceSurfaceAlignedRawData();
-  if (newSurf->Init(aSize, aFormat)) {
+  if (newSurf->Init(aSize, aFormat, aZero)) {
     return newSurf.forget();
   }
 
@@ -710,7 +720,8 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
 TemporaryRef<DataSourceSurface>
 Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
                                            SurfaceFormat aFormat,
-                                           int32_t aStride)
+                                           int32_t aStride,
+                                           bool aZero)
 {
   if (aStride < aSize.width * BytesPerPixel(aFormat)) {
     gfxWarning() << "CreateDataSourceSurfaceWithStride failed with bad stride";
@@ -718,7 +729,7 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
   }
 
   RefPtr<SourceSurfaceAlignedRawData> newSurf = new SourceSurfaceAlignedRawData();
-  if (newSurf->InitWithStride(aSize, aFormat, aStride)) {
+  if (newSurf->InitWithStride(aSize, aFormat, aStride, aZero)) {
     return newSurf.forget();
   }
 

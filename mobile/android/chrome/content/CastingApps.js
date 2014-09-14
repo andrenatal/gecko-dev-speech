@@ -7,9 +7,10 @@
 XPCOMUtils.defineLazyModuleGetter(this, "PageActions",
                                   "resource://gre/modules/PageActions.jsm");
 
-// Define service targets. We should consider moving these to their respective
+// Define service devices. We should consider moving these to their respective
 // JSM files, but we left them here to allow for better lazy JSM loading.
-var rokuTarget = {
+var rokuDevice = {
+  id: "roku:ecp",
   target: "roku:ecp",
   factory: function(aService) {
     Cu.import("resource://gre/modules/RokuApp.jsm");
@@ -19,7 +20,8 @@ var rokuTarget = {
   extensions: ["mp4"]
 };
 
-var fireflyTarget = {
+var fireflyDevice = {
+  id: "firefly:dial",
   target: "urn:dial-multiscreen-org:service:dial:1",
   filters: {
     server: null,
@@ -33,7 +35,8 @@ var fireflyTarget = {
   extensions: ["mp4", "webm"]
 };
 
-var mediaPlayerTarget = {
+var mediaPlayerDevice = {
+  id: "media:router",
   target: "media:router",
   factory: function(aService) {
     Cu.import("resource://gre/modules/MediaPlayerApp.jsm");
@@ -54,15 +57,15 @@ var CastingApps = {
     }
 
     // Register targets
-    SimpleServiceDiscovery.registerTarget(rokuTarget);
-    SimpleServiceDiscovery.registerTarget(fireflyTarget);
-    SimpleServiceDiscovery.registerTarget(mediaPlayerTarget);
+    SimpleServiceDiscovery.registerDevice(rokuDevice);
+    SimpleServiceDiscovery.registerDevice(fireflyDevice);
+    SimpleServiceDiscovery.registerDevice(mediaPlayerDevice);
 
     // Search for devices continuously every 120 seconds
     SimpleServiceDiscovery.search(120 * 1000);
 
     this._castMenuId = NativeWindow.contextmenus.add(
-      Strings.browser.GetStringFromName("contextmenu.castToScreen"),
+      Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
       this.filterCast,
       this.handleContextMenu.bind(this)
     );
@@ -429,14 +432,14 @@ var CastingApps = {
     // Both states have the same action: Show the cast page action
     if (aVideo.mozIsCasting) {
       this.pageAction.id = PageActions.add({
-        title: Strings.browser.GetStringFromName("contextmenu.castToScreen"),
+        title: Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
         icon: "drawable://casting_active",
         clickCallback: this.pageAction.click,
         important: true
       });
     } else if (aVideo.mozAllowCasting) {
       this.pageAction.id = PageActions.add({
-        title: Strings.browser.GetStringFromName("contextmenu.castToScreen"),
+        title: Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
         icon: "drawable://casting",
         clickCallback: this.pageAction.click,
         important: true
@@ -463,7 +466,7 @@ var CastingApps = {
     }
 
     let prompt = new Prompt({
-      title: Strings.browser.GetStringFromName("casting.prompt")
+      title: Strings.browser.GetStringFromName("casting.sendToDevice")
     }).setSingleChoiceItems(items).show(function(data) {
       let selected = data.button;
       let service = selected == -1 ? null : filteredServices[selected];
@@ -563,7 +566,7 @@ var CastingApps = {
     }
 
     aRemoteMedia.load(this.session.data);
-    sendMessageToJava({ type: "Casting:Started", device: this.session.service.friendlyName });
+    Messaging.sendRequest({ type: "Casting:Started", device: this.session.service.friendlyName });
 
     let video = this.session.videoRef.get();
     if (video) {
@@ -573,7 +576,7 @@ var CastingApps = {
   },
 
   onRemoteMediaStop: function(aRemoteMedia) {
-    sendMessageToJava({ type: "Casting:Stopped" });
+    Messaging.sendRequest({ type: "Casting:Stopped" });
     this._shutdown();
   },
 

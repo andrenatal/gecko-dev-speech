@@ -429,7 +429,24 @@ class Build(MachCommandBase):
                     method = notify.get_dbus_method('Notify',
                                                     'org.freedesktop.Notifications')
                     method('Mozilla Build System', 0, '', 'Build complete', '', [], [], -1)
-
+                elif sys.platform.startswith('win'):
+                    from ctypes import Structure, windll, POINTER, sizeof
+                    from ctypes.wintypes import DWORD, HANDLE, WINFUNCTYPE, BOOL, UINT
+                    class FLASHWINDOW(Structure):
+                        _fields_ = [("cbSize", UINT),
+                                    ("hwnd", HANDLE),
+                                    ("dwFlags", DWORD),
+                                    ("uCount", UINT),
+                                    ("dwTimeout", DWORD)]
+                    FlashWindowExProto = WINFUNCTYPE(BOOL, POINTER(FLASHWINDOW))
+                    FlashWindowEx = FlashWindowExProto(("FlashWindowEx", windll.user32))
+                    FLASHW_CAPTION = 0x01
+                    FLASHW_TRAY = 0x02
+                    FLASHW_TIMERNOFG = 0x0C
+                    params = FLASHWINDOW(sizeof(FLASHWINDOW),
+                                        windll.kernel32.GetConsoleWindow(),
+                                        FLASHW_CAPTION | FLASHW_TRAY | FLASHW_TIMERNOFG, 3, 0)
+                    FlashWindowEx(params)
             except Exception as e:
                 self.log(logging.WARNING, 'notifier-failed', {'error':
                     e.message}, 'Notification center failed: {error}')
@@ -440,9 +457,9 @@ class Build(MachCommandBase):
         long_build = monitor.elapsed > 600
 
         if long_build:
-            print('We know it took a while, but your build finally finished successfully!')
+            output.on_line('We know it took a while, but your build finally finished successfully!')
         else:
-            print('Your build was successful!')
+            output.on_line('Your build was successful!')
 
         if monitor.have_resource_usage:
             excessive, swap_in, swap_out = monitor.have_excessive_swapping()
@@ -807,7 +824,7 @@ class DebugProgram(MachCommandBase):
     @CommandArgument('+debugger', default=None, type=str,
         help='Name of debugger to launch')
     @CommandArgument('+debugparams', default=None, metavar='params', type=str,
-        help='Command-line arguments to pass to GDB or LLDB itself; split as the Bourne shell would.')
+        help='Command-line arguments to pass to the debugger itself; split as the Bourne shell would.')
     # Bug 933807 introduced JS_DISABLE_SLOW_SCRIPT_SIGNALS to avoid clever
     # segfaults induced by the slow-script-detecting logic for Ion/Odin JITted
     # code.  If we don't pass this, the user will need to periodically type
@@ -816,26 +833,7 @@ class DebugProgram(MachCommandBase):
     @CommandArgument('+slowscript', action='store_true',
         help='Do not set the JS_DISABLE_SLOW_SCRIPT_SIGNALS env variable; when not set, recoverable but misleading SIGSEGV instances may occur in Ion/Odin JIT code')
     def debug(self, params, remote, background, debugger, debugparams, slowscript):
-        import which
-        if debugger:
-            try:
-                debugger = which.which(debugger)
-            except Exception as e:
-                print("You don't have %s in your PATH" % (debugger))
-                print(e)
-                return 1
-        else:
-            try:
-                debugger = which.which('gdb')
-            except Exception:
-                try:
-                    debugger = which.which('lldb')
-                except Exception as e:
-                    print("You don't have gdb or lldb in your PATH")
-                    print(e)
-                    return 1
-        args = [debugger]
-        extra_env = { 'MOZ_CRASHREPORTER_DISABLE' : '1' }
+        # Parameters come from the CLI. We need to convert them before their use.
         if debugparams:
             import pymake.process
             argv, badchar = pymake.process.clinetoargv(debugparams, os.getcwd())
@@ -843,7 +841,22 @@ class DebugProgram(MachCommandBase):
                 print("The +debugparams you passed require a real shell to parse them.")
                 print("(We can't handle the %r character.)" % (badchar,))
                 return 1
-            args.extend(argv)
+            debugparams = argv;
+
+        import mozdebug
+
+        if not debugger:
+            # No debugger name was provided. Look for the default ones on current OS.
+            debugger = mozdebug.get_default_debugger_name(mozdebug.DebuggerSearch.KeepLooking)
+
+        self.debuggerInfo = mozdebug.get_debugger_info(debugger, debugparams)
+
+        # We could not find the information about the desired debugger.
+        if not self.debuggerInfo:
+            print("Could not find a suitable debugger in your PATH.")
+            return 1
+
+        extra_env = { 'MOZ_CRASHREPORTER_DISABLE' : '1' }
 
         binpath = None
 
@@ -855,17 +868,8 @@ class DebugProgram(MachCommandBase):
             print(e)
             return 1
 
-        # args added to separate the debugger and process arguments.
-        args_separator = {
-            'gdb': '--args',
-            'ddd': '--args',
-            'cgdb': '--args',
-            'lldb': '--'
-        }
-
-        debugger_name = os.path.basename(debugger)
-        if debugger_name in args_separator:
-            args.append(args_separator[debugger_name])
+        # Build the list of arguments to pass to run_process
+        args = [self.debuggerInfo.path] + self.debuggerInfo.args
         args.append(binpath)
 
         if not remote:

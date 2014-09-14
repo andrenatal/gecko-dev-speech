@@ -7,9 +7,11 @@
 #include "nsIContentChild.h"
 
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/DOMTypes.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "mozilla/dom/TabChild.h"
+#include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/dom/ipc/nsIRemoteBlob.h"
 #include "mozilla/ipc/InputStreamUtils.h"
 
@@ -67,7 +69,8 @@ nsIContentChild::AllocPBrowserChild(const IPCTabContext& aContext,
     MOZ_CRASH("Invalid TabContext received from the parent process.");
   }
 
-  nsRefPtr<TabChild> child = TabChild::Create(this, tc.GetTabContext(), aChromeFlags);
+  nsRefPtr<TabChild> child =
+    TabChild::Create(this, tc.GetTabContext(), aChromeFlags);
 
   // The ref here is released in DeallocPBrowserChild.
   return child.forget().take();
@@ -90,7 +93,7 @@ nsIContentChild::AllocPBlobChild(const BlobConstructorParams& aParams)
 bool
 nsIContentChild::DeallocPBlobChild(PBlobChild* aActor)
 {
-  delete aActor;
+  BlobChild::Destroy(aActor);
   return true;
 }
 
@@ -105,11 +108,10 @@ nsIContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
   const auto* domFile = static_cast<DOMFile*>(aBlob);
   nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(domFile->Impl());
   if (remoteBlob) {
-    BlobChild* actor =
-      static_cast<BlobChild*>(
-        static_cast<PBlobChild*>(remoteBlob->GetPBlob()));
+    BlobChild* actor = remoteBlob->GetBlobChild();
     MOZ_ASSERT(actor);
-    if (actor->Manager() == this) {
+
+    if (actor->GetContentManager() == this) {
       return actor;
     }
   }

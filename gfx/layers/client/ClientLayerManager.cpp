@@ -40,6 +40,52 @@ namespace layers {
 
 using namespace mozilla::gfx;
 
+void
+ClientLayerManager::MemoryPressureObserver::Destroy()
+{
+  UnregisterMemoryPressureEvent();
+  mClientLayerManager = nullptr;
+}
+
+NS_IMETHODIMP
+ClientLayerManager::MemoryPressureObserver::Observe(nsISupports* aSubject,
+                                                    const char* aTopic,
+                                                    const char16_t* aSomeData)
+{
+  if (!mClientLayerManager || strcmp(aTopic, "memory-pressure")) {
+    return NS_OK;
+  }
+
+  mClientLayerManager->HandleMemoryPressure();
+  return NS_OK;
+}
+
+void
+ClientLayerManager::MemoryPressureObserver::RegisterMemoryPressureEvent()
+{
+  nsCOMPtr<nsIObserverService> observerService =
+    mozilla::services::GetObserverService();
+
+  MOZ_ASSERT(observerService);
+
+  if (observerService) {
+    observerService->AddObserver(this, "memory-pressure", false);
+  }
+}
+
+void
+ClientLayerManager::MemoryPressureObserver::UnregisterMemoryPressureEvent()
+{
+  nsCOMPtr<nsIObserverService> observerService =
+      mozilla::services::GetObserverService();
+
+  if (observerService) {
+      observerService->RemoveObserver(this, "memory-pressure");
+  }
+}
+
+NS_IMPL_ISUPPORTS(ClientLayerManager::MemoryPressureObserver, nsIObserver)
+
 ClientLayerManager::ClientLayerManager(nsIWidget* aWidget)
   : mPhase(PHASE_NONE)
   , mWidget(aWidget)
@@ -54,6 +100,7 @@ ClientLayerManager::ClientLayerManager(nsIWidget* aWidget)
   , mForwarder(new ShadowLayerForwarder)
 {
   MOZ_COUNT_CTOR(ClientLayerManager);
+  mMemoryPressureObserver = new MemoryPressureObserver(this);
 }
 
 ClientLayerManager::~ClientLayerManager()
@@ -61,6 +108,7 @@ ClientLayerManager::~ClientLayerManager()
   if (mTransactionIdAllocator) {
     DidComposite(mLatestTransactionId);
   }
+  mMemoryPressureObserver->Destroy();
   ClearCachedResources();
   // Stop receiveing AsyncParentMessage at Forwarder.
   // After the call, the message is directly handled by LayerTransactionChild. 
@@ -85,9 +133,6 @@ ClientLayerManager::SetDefaultTargetConfiguration(BufferMode aDoubleBuffering,
                                                   ScreenRotation aRotation)
 {
   mTargetRotation = aRotation;
-  if (mWidget) {
-    mTargetBounds = mWidget->GetNaturalBounds();
-   }
  }
 
 void
@@ -153,10 +198,9 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
     hal::GetCurrentScreenConfiguration(&currentConfig);
     orientation = currentConfig.orientation();
   }
-  nsIntRect clientBounds;
-  mWidget->GetClientBounds(clientBounds);
-  clientBounds.x = clientBounds.y = 0;
-  mForwarder->BeginTransaction(mTargetBounds, mTargetRotation, clientBounds, orientation);
+  nsIntRect targetBounds = mWidget->GetNaturalBounds();
+  targetBounds.x = targetBounds.y = 0;
+  mForwarder->BeginTransaction(targetBounds, mTargetRotation, orientation);
 
   // If we're drawing on behalf of a context with async pan/zoom
   // enabled, then the entire buffer of thebes layers might be
@@ -335,6 +379,19 @@ ClientLayerManager::GetCompositorSideAPZTestData(APZTestData* aData) const
       NS_WARNING("Call to PLayerTransactionChild::SendGetAPZTestData() failed");
     }
   }
+}
+
+float
+ClientLayerManager::RequestProperty(const nsAString& aProperty)
+{
+  if (mForwarder->HasShadowManager()) {
+    float value;
+    if (!mForwarder->GetShadowManager()->SendRequestProperty(nsString(aProperty), &value)) {
+      NS_WARNING("Call to PLayerTransactionChild::SendGetAPZTestData() failed");
+    }
+    return value;
+  }
+  return -1;
 }
 
 void
@@ -619,6 +676,14 @@ ClientLayerManager::ClearCachedResources(Layer* aSubtree)
   }
   for (size_t i = 0; i < mTexturePools.Length(); i++) {
     mTexturePools[i]->Clear();
+  }
+}
+
+void
+ClientLayerManager::HandleMemoryPressure()
+{
+  for (size_t i = 0; i < mTexturePools.Length(); i++) {
+    mTexturePools[i]->ShrinkToMinimumSize();
   }
 }
 

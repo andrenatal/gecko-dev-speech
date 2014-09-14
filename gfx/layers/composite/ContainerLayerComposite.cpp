@@ -35,6 +35,10 @@
 #include "nsTArray.h"                   // for nsAutoTArray
 #include "TextRenderer.h"               // for TextRenderer
 #include <vector>
+#include "GeckoProfiler.h"              // for GeckoProfiler
+#ifdef MOZ_ENABLE_PROFILER_SPS
+#include "ProfilerMarkers.h"            // for ProfilerMarkers
+#endif
 
 #define CULLING_LOG(...)
 // #define CULLING_LOG(...) printf_stderr("CULLING: " __VA_ARGS__)
@@ -53,7 +57,7 @@ GetOpaqueRect(Layer* aLayer)
 {
   nsIntRect result;
   gfx::Matrix matrix;
-  bool is2D = aLayer->GetBaseTransform().Is2D(&matrix);
+  bool is2D = aLayer->AsLayerComposite()->GetShadowTransform().Is2D(&matrix);
 
   // Just bail if there's anything difficult to handle.
   if (!is2D || aLayer->GetMaskLayer() ||
@@ -115,7 +119,10 @@ static void DrawLayerInfo(const RenderTargetIntRect& aClipRect,
 
 static void PrintUniformityInfo(Layer* aLayer)
 {
-  static TimeStamp t0 = TimeStamp::Now();
+#ifdef MOZ_ENABLE_PROFILER_SPS
+  if (!profiler_is_active()) {
+    return;
+  }
 
   // Don't want to print a log for smaller layers
   if (aLayer->GetEffectiveVisibleRegion().GetBounds().width < 300 ||
@@ -127,10 +134,11 @@ static void PrintUniformityInfo(Layer* aLayer)
   if (!transform.Is2D()) {
     return;
   }
+
   Point translation = transform.As2D().GetTranslation();
-  printf_stderr("UniformityInfo Layer_Move %llu %p %s\n",
-      (unsigned long long)(TimeStamp::Now() - t0).ToMilliseconds(), aLayer,
-      ToString(translation).c_str());
+  LayerTranslationPayload* payload = new LayerTranslationPayload(aLayer, translation);
+  PROFILER_MARKER_PAYLOAD("LayerTranslation", payload);
+#endif
 }
 
 /* all of the per-layer prepared data we need to maintain */
@@ -149,6 +157,7 @@ struct PreparedData
 {
   RefPtr<CompositingRenderTarget> mTmpTarget;
   nsAutoTArray<PreparedLayer, 12> mLayers;
+  bool mNeedsSurfaceCopy;
 };
 
 // ContainerPrepare is shared between RefLayer and ContainerLayer
@@ -158,6 +167,7 @@ ContainerPrepare(ContainerT* aContainer,
                  const RenderTargetIntRect& aClipRect)
 {
   aContainer->mPrepared = MakeUnique<PreparedData>();
+  aContainer->mPrepared->mNeedsSurfaceCopy = false;
 
   /**
    * Determine which layers to draw.
@@ -174,7 +184,7 @@ ContainerPrepare(ContainerT* aContainer,
     }
 
     RenderTargetIntRect clipRect = layerToRender->GetLayer()->
-        CalculateScissorRect(aClipRect, &aManager->GetWorldTransform());
+        CalculateScissorRect(aClipRect);
     if (clipRect.IsEmpty()) {
       continue;
     }
@@ -242,6 +252,8 @@ ContainerPrepare(ContainerT* aContainer,
       RefPtr<CompositingRenderTarget> surface = CreateTemporaryTarget(aContainer, aManager);
       RenderIntermediate(aContainer, aManager, RenderTargetPixel::ToUntyped(aClipRect), surface);
       aContainer->mPrepared->mTmpTarget = surface;
+    } else {
+      aContainer->mPrepared->mNeedsSurfaceCopy = true;
     }
   }
 }
@@ -252,41 +264,6 @@ RenderLayers(ContainerT* aContainer,
 	     const RenderTargetIntRect& aClipRect)
 {
   Compositor* compositor = aManager->GetCompositor();
-
-  float opacity = aContainer->GetEffectiveOpacity();
-
-  // If this is a scrollable container layer, and it's overscrolled, the layer's
-  // contents are transformed in a way that would leave blank regions in the
-  // composited area. If the layer has a background color, fill these areas
-  // with the background color by drawing a rectangle of the background color
-  // over the entire composited area before drawing the container contents.
-  // Make sure not to do this on a "scrollinfo" layer because it's just a
-  // placeholder for APZ purposes.
-  if (aContainer->HasScrollableFrameMetrics() && !aContainer->IsScrollInfoLayer()) {
-    bool overscrolled = false;
-    for (uint32_t i = 0; i < aContainer->GetFrameMetricsCount(); i++) {
-      AsyncPanZoomController* apzc = aContainer->GetAsyncPanZoomController(i);
-      if (apzc && apzc->IsOverscrolled()) {
-        overscrolled = true;
-        break;
-      }
-    }
-    if (overscrolled) {
-      gfxRGBA color = aContainer->GetBackgroundColor();
-      // If the background is completely transparent, there's no point in
-      // drawing anything for it. Hopefully the layers behind, if any, will
-      // provide suitable content for the overscroll effect.
-      if (color.a != 0.0) {
-        EffectChain effectChain(aContainer);
-        effectChain.mPrimaryEffect = new EffectSolidColor(ToColor(color));
-        gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
-        compositor->DrawQuad(
-          RenderTargetPixel::ToUnknown(
-            compositor->ClipRectInLayersCoordinates(aContainer, aClipRect)),
-          clipRect, effectChain, opacity, Matrix4x4());
-      }
-    }
-  }
 
   for (size_t i = 0u; i < aContainer->mPrepared->mLayers.Length(); i++) {
     PreparedLayer& preparedData = aContainer->mPrepared->mLayers[i];
@@ -313,13 +290,30 @@ RenderLayers(ContainerT* aContainer,
       layerToRender->SetShadowVisibleRegion(preparedData.mSavedVisibleRegion);
     }
 
+    Layer* layer = layerToRender->GetLayer();
     if (gfxPrefs::UniformityInfo()) {
-      PrintUniformityInfo(layerToRender->GetLayer());
+      PrintUniformityInfo(layer);
     }
 
     if (gfxPrefs::DrawLayerInfo()) {
-      DrawLayerInfo(clipRect, aManager, layerToRender->GetLayer());
+      DrawLayerInfo(clipRect, aManager, layer);
     }
+
+    // Draw a border around scrollable layers.
+    for (uint32_t i = 0; i < layer->GetFrameMetricsCount(); i++) {
+      // A layer can be scrolled by multiple scroll frames. Draw a border
+      // for each.
+      if (layer->GetFrameMetrics(i).IsScrollable()) {
+        // Since the composition bounds are in the parent layer's coordinates,
+        // use the parent's effective transform rather than the layer's own.
+        ParentLayerRect compositionBounds = layer->GetFrameMetrics(i).mCompositionBounds;
+        aManager->GetCompositor()->DrawDiagnostics(DiagnosticFlags::CONTAINER,
+                                                   compositionBounds.ToUnknownRect(),
+                                                   gfx::Rect(aClipRect.ToUnknownRect()),
+                                                   aContainer->GetEffectiveTransform());
+      }
+    }
+
     // invariant: our GL context should be current here, I don't think we can
     // assert it though
   }
@@ -392,13 +386,18 @@ ContainerRender(ContainerT* aContainer,
   if (aContainer->UseIntermediateSurface()) {
     RefPtr<CompositingRenderTarget> surface;
 
-    if (!aContainer->mPrepared->mTmpTarget) {
+    if (aContainer->mPrepared->mNeedsSurfaceCopy) {
       // we needed to copy the background so we waited until now to render the intermediate
       surface = CreateTemporaryTargetAndCopyFromBackground(aContainer, aManager);
       RenderIntermediate(aContainer, aManager,
                          aClipRect, surface);
     } else {
       surface = aContainer->mPrepared->mTmpTarget;
+    }
+
+    if (!surface) {
+      aContainer->mPrepared = nullptr;
+      return;
     }
 
     float opacity = aContainer->GetEffectiveOpacity();
@@ -434,17 +433,23 @@ ContainerRender(ContainerT* aContainer,
   }
   aContainer->mPrepared = nullptr;
 
-  for (uint32_t i = 0; i < aContainer->GetFrameMetricsCount(); i++) {
-    if (!aContainer->GetFrameMetrics(i).IsScrollable()) {
-      continue;
+  // If it is a scrollable container layer with no child layers, and one of the APZCs
+  // attached to it has a nonempty async transform, then that transform is not applied
+  // to any visible content. Display a warning box (conditioned on the FPS display being
+  // enabled).
+  if (gfxPrefs::LayersDrawFPS() && aContainer->IsScrollInfoLayer()) {
+    // Since aContainer doesn't have any children we can just iterate from the top metrics
+    // on it down to the bottom using GetFirstChild and not worry about walking onto another
+    // underlying layer.
+    for (LayerMetricsWrapper i(aContainer); i; i = i.GetFirstChild()) {
+      if (AsyncPanZoomController* apzc = i.GetApzc()) {
+        if (!apzc->GetAsyncTransformAppliedToContent()
+            && !Matrix4x4(apzc->GetCurrentAsyncTransform()).IsIdentity()) {
+          aManager->UnusedApzTransformWarning();
+          break;
+        }
+      }
     }
-    const FrameMetrics& frame = aContainer->GetFrameMetrics(i);
-    LayerRect layerBounds = frame.mCompositionBounds * ParentLayerToLayerScale(1.0);
-    gfx::Rect rect(layerBounds.x, layerBounds.y, layerBounds.width, layerBounds.height);
-    gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
-    aManager->GetCompositor()->DrawDiagnostics(DiagnosticFlags::CONTAINER,
-                                               rect, clipRect,
-                                               aContainer->GetEffectiveTransform());
   }
 }
 

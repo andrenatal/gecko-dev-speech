@@ -33,6 +33,7 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/layers/CompositorTypes.h"
+#include "nsIWebBrowserChrome3.h"
 
 class nsICachedFileDescriptorListener;
 class nsIDOMWindowUtils;
@@ -224,6 +225,7 @@ protected:
     ScreenIntSize mInnerSize;
     mozilla::layers::FrameMetrics mLastRootMetrics;
     mozilla::layout::ScrollingBehavior mScrolling;
+    nsCOMPtr<nsIWebBrowserChrome3> mWebBrowserChrome;
 };
 
 class TabChild MOZ_FINAL : public TabChildBase,
@@ -397,6 +399,15 @@ public:
     virtual bool
     DeallocPFilePickerChild(PFilePickerChild* actor) MOZ_OVERRIDE;
 
+    virtual PIndexedDBPermissionRequestChild*
+    AllocPIndexedDBPermissionRequestChild(const Principal& aPrincipal)
+                                          MOZ_OVERRIDE;
+
+    virtual bool
+    DeallocPIndexedDBPermissionRequestChild(
+                                       PIndexedDBPermissionRequestChild* aActor)
+                                       MOZ_OVERRIDE;
+
     virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdateChild(
             const URIParams& manifestURI,
             const URIParams& documentURI,
@@ -487,12 +498,6 @@ protected:
     virtual bool RecvDestroy() MOZ_OVERRIDE;
     virtual bool RecvSetUpdateHitRegion(const bool& aEnabled) MOZ_OVERRIDE;
     virtual bool RecvSetIsDocShellActive(const bool& aIsActive) MOZ_OVERRIDE;
-
-    virtual PIndexedDBChild* AllocPIndexedDBChild(const nsCString& aGroup,
-                                                  const nsCString& aASCIIOrigin,
-                                                  bool* /* aAllowed */) MOZ_OVERRIDE;
-
-    virtual bool DeallocPIndexedDBChild(PIndexedDBChild* aActor) MOZ_OVERRIDE;
 
     virtual bool RecvRequestNotifyAfterRemotePaint();
 

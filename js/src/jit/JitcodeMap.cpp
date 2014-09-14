@@ -8,7 +8,7 @@
 
 #include "mozilla/DebugOnly.h"
 #include "jit/BaselineJIT.h"
-#include "jit/IonSpewer.h"
+#include "jit/JitSpewer.h"
 
 #include "js/Vector.h"
 
@@ -123,7 +123,24 @@ JitcodeGlobalEntry::compare(const JitcodeGlobalEntry &ent1, const JitcodeGlobalE
     // Ensure no overlaps for non-query lookups.
     JS_ASSERT_IF(!ent1.isQuery() && !ent2.isQuery(), !ent1.overlapsWith(ent2));
 
-    return ComparePointers(ent1.nativeStartAddr(), ent2.nativeStartAddr());
+    // For two non-query entries, just comapare the start addresses.
+    if (!ent1.isQuery() && !ent2.isQuery())
+        return ComparePointers(ent1.nativeStartAddr(), ent2.nativeStartAddr());
+
+    void *ptr = ent1.isQuery() ? ent1.nativeStartAddr() : ent2.nativeStartAddr();
+    const JitcodeGlobalEntry &ent = ent1.isQuery() ? ent2 : ent1;
+    int flip = ent1.isQuery() ? 1 : -1;
+
+    if (ent.startsBelowPointer(ptr)) {
+        if (ent.endsAbovePointer(ptr))
+            return 0;
+
+        // query ptr > entry
+        return flip * 1;
+    }
+
+    // query ptr < entry
+    return flip * -1;
 }
 
 bool
@@ -363,7 +380,7 @@ struct JitcodeMapBufferWriteSpewer
 
     static const uint32_t DumpMaxBytes = 50;
 
-    JitcodeMapBufferWriteSpewer(CompactBufferWriter &w)
+    explicit JitcodeMapBufferWriteSpewer(CompactBufferWriter &w)
       : writer(&w), startPos(writer->length())
     {}
 
@@ -385,7 +402,7 @@ struct JitcodeMapBufferWriteSpewer
         else
             buffer[bytes*3 - 1] = '\0';
 
-        IonSpew(IonSpew_Profiling, "%s@%d[%d bytes] - %s", name, int(startPos), int(bytes), buffer);
+        JitSpew(JitSpew_Profiling, "%s@%d[%d bytes] - %s", name, int(startPos), int(bytes), buffer);
 
         // Move to the end of the current buffer.
         startPos = writer->length();
@@ -413,7 +430,7 @@ JitcodeRegionEntry::WriteRun(CompactBufferWriter &writer,
     JitcodeMapBufferWriteSpewer spewer(writer);
 
     // Write the head info.
-    IonSpew(IonSpew_Profiling, "    Head Info: nativeOffset=%d scriptDepth=%d",
+    JitSpew(JitSpew_Profiling, "    Head Info: nativeOffset=%d scriptDepth=%d",
             int(regionNativeOffset), int(scriptDepth));
     WriteHead(writer, regionNativeOffset, scriptDepth);
     spewer.spewAndAdvance("      ");
@@ -434,7 +451,7 @@ JitcodeRegionEntry::WriteRun(CompactBufferWriter &writer,
 
             uint32_t pcOffset = curTree->script()->pcToOffset(curPc);
 
-            IonSpew(IonSpew_Profiling, "    Script/PC %d: scriptIdx=%d pcOffset=%d",
+            JitSpew(JitSpew_Profiling, "    Script/PC %d: scriptIdx=%d pcOffset=%d",
                     int(i), int(scriptIdx), int(pcOffset));
             WriteScriptPc(writer, scriptIdx, pcOffset);
             spewer.spewAndAdvance("      ");
@@ -449,7 +466,7 @@ JitcodeRegionEntry::WriteRun(CompactBufferWriter &writer,
     uint32_t curNativeOffset = entry->nativeOffset.offset();
     uint32_t curBytecodeOffset = entry->tree->script()->pcToOffset(entry->pc);
 
-    IonSpew(IonSpew_Profiling, "  Writing Delta Run from nativeOffset=%d bytecodeOffset=%d",
+    JitSpew(JitSpew_Profiling, "  Writing Delta Run from nativeOffset=%d bytecodeOffset=%d",
             int(curNativeOffset), int(curBytecodeOffset));
 
     // Skip first entry because it is implicit in the header.  Start at subsequent entry.
@@ -464,22 +481,22 @@ JitcodeRegionEntry::WriteRun(CompactBufferWriter &writer,
         int32_t bytecodeDelta = int32_t(nextBytecodeOffset) - int32_t(curBytecodeOffset);
         JS_ASSERT(IsDeltaEncodeable(nativeDelta, bytecodeDelta));
 
-        IonSpew(IonSpew_Profiling, "    RunEntry native: %d-%d [%d]  bytecode: %d-%d [%d]",
+        JitSpew(JitSpew_Profiling, "    RunEntry native: %d-%d [%d]  bytecode: %d-%d [%d]",
                 int(curNativeOffset), int(nextNativeOffset), int(nativeDelta),
                 int(curBytecodeOffset), int(nextBytecodeOffset), int(bytecodeDelta));
         WriteDelta(writer, nativeDelta, bytecodeDelta);
 
         // Spew the bytecode in these ranges.
         if (curBytecodeOffset < nextBytecodeOffset) {
-            IonSpewStart(IonSpew_Profiling, "      OPS: ");
+            JitSpewStart(JitSpew_Profiling, "      OPS: ");
             uint32_t curBc = curBytecodeOffset;
             while (curBc < nextBytecodeOffset) {
                 jsbytecode *pc = entry[i].tree->script()->offsetToPC(curBc);
                 JSOp op = JSOp(*pc);
-                IonSpewCont(IonSpew_Profiling, "%s ", js_CodeName[op]);
+                JitSpewCont(JitSpew_Profiling, "%s ", js_CodeName[op]);
                 curBc += GetBytecodeLength(pc);
             }
-            IonSpewFin(IonSpew_Profiling);
+            JitSpewFin(JitSpew_Profiling);
         }
         spewer.spewAndAdvance("      ");
 
@@ -626,13 +643,13 @@ JitcodeIonTable::WriteIonTable(CompactBufferWriter &writer,
     JS_ASSERT(writer.length() == 0);
     JS_ASSERT(scriptListSize > 0);
 
-    IonSpew(IonSpew_Profiling, "Writing native to bytecode map for %s:%d (%d entries)",
+    JitSpew(JitSpew_Profiling, "Writing native to bytecode map for %s:%d (%d entries)",
             scriptList[0]->filename(), scriptList[0]->lineno(),
             int(end - start));
 
-    IonSpew(IonSpew_Profiling, "  ScriptList of size %d", int(scriptListSize));
+    JitSpew(JitSpew_Profiling, "  ScriptList of size %d", int(scriptListSize));
     for (uint32_t i = 0; i < scriptListSize; i++) {
-        IonSpew(IonSpew_Profiling, "  Script %d - %s:%d",
+        JitSpew(JitSpew_Profiling, "  Script %d - %s:%d",
                 int(i), scriptList[i]->filename(), int(scriptList[i]->lineno()));
     }
 
@@ -646,7 +663,7 @@ JitcodeIonTable::WriteIonTable(CompactBufferWriter &writer,
         uint32_t runLength = JitcodeRegionEntry::ExpectedRunLength(curEntry, end);
         JS_ASSERT(runLength > 0);
         JS_ASSERT(runLength <= (end - curEntry));
-        IonSpew(IonSpew_Profiling, "  Run at entry %d, length %d, buffer offset %d",
+        JitSpew(JitSpew_Profiling, "  Run at entry %d, length %d, buffer offset %d",
                 int(curEntry - start), int(runLength), int(writer.length()));
 
         // Store the offset of the run.
@@ -665,7 +682,7 @@ JitcodeIonTable::WriteIonTable(CompactBufferWriter &writer,
     uint32_t padding = sizeof(uint32_t) - (writer.length() % sizeof(uint32_t));
     if (padding == sizeof(uint32_t))
         padding = 0;
-    IonSpew(IonSpew_Profiling, "  Padding %d bytes after run @%d",
+    JitSpew(JitSpew_Profiling, "  Padding %d bytes after run @%d",
             int(padding), int(writer.length()));
     for (uint32_t i = 0; i < padding; i++)
         writer.writeByte(0);
@@ -677,14 +694,14 @@ JitcodeIonTable::WriteIonTable(CompactBufferWriter &writer,
     // pointers, so all writes below use native endianness.
 
     // Write out numRegions
-    IonSpew(IonSpew_Profiling, "  Writing numRuns=%d", int(runOffsets.length()));
+    JitSpew(JitSpew_Profiling, "  Writing numRuns=%d", int(runOffsets.length()));
     writer.writeNativeEndianUint32_t(runOffsets.length());
 
     // Write out region offset table.  The offsets in |runOffsets| are currently forward
     // offsets from the beginning of the buffer.  We convert them to backwards offsets
     // from the start of the table before writing them into their table entries.
     for (uint32_t i = 0; i < runOffsets.length(); i++) {
-        IonSpew(IonSpew_Profiling, "  Run %d offset=%d backOffset=%d @%d",
+        JitSpew(JitSpew_Profiling, "  Run %d offset=%d backOffset=%d @%d",
                 int(i), int(runOffsets[i]), int(tableOffset - runOffsets[i]), int(writer.length()));
         writer.writeNativeEndianUint32_t(tableOffset - runOffsets[i]);
     }

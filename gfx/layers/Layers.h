@@ -667,6 +667,8 @@ public:
     return SupportsMixBlendModes(modes);
   }
 
+  virtual float RequestProperty(const nsAString& property) { return -1; }
+
 protected:
   nsRefPtr<Layer> mRoot;
   gfx::UserData mUserData;
@@ -1171,28 +1173,6 @@ public:
     }
   }
 
-  void SetBackgroundColor(const gfxRGBA& aColor)
-  {
-    if (mBackgroundColor == aColor) {
-      return;
-    }
-
-    MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) BackgroundColor", this));
-    mBackgroundColor = aColor;
-    Mutated();
-  }
-
-  void SetContentDescription(const std::string& aContentDescription)
-  {
-    if (mContentDescription == aContentDescription) {
-      return;
-    }
-
-    MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ContentDescription", this));
-    mContentDescription = aContentDescription;
-    Mutated();
-  }
-
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   gfx::CompositionOp GetMixBlendMode() const { return mMixBlendMode; }
@@ -1226,8 +1206,6 @@ public:
   FrameMetrics::ViewID GetScrollbarTargetContainerId() { return mScrollbarTargetId; }
   ScrollDirection GetScrollbarDirection() { return mScrollbarDirection; }
   Layer* GetMaskLayer() const { return mMaskLayer; }
-  gfxRGBA GetBackgroundColor() const { return mBackgroundColor; }
-  const std::string& GetContentDescription() const { return mContentDescription; }
 
 
   // Note that all lengths in animation data are either in CSS pixels or app
@@ -1414,12 +1392,8 @@ public:
    * nearest ancestor that has an intermediate surface, or relative to the root
    * viewport if no ancestor has an intermediate surface, corresponding to the
    * clip rect for this layer intersected with aCurrentScissorRect.
-   * If no ancestor has an intermediate surface, the clip rect is transformed
-   * by aWorldTransform before being combined with aCurrentScissorRect, if
-   * aWorldTransform is non-null.
    */
-  RenderTargetIntRect CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
-                                           const gfx::Matrix* aWorldTransform);
+  RenderTargetIntRect CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect);
 
   virtual const char* Name() const =0;
   virtual LayerType GetType() const =0;
@@ -1655,12 +1629,6 @@ protected:
   // If this layer is used for OMTA, then this counter is used to ensure we
   // stay in sync with the animation manager
   uint64_t mAnimationGeneration;
-  // This is currently set and used only for scrollable container layers.
-  gfxRGBA mBackgroundColor;
-  // A description of the content element corresponding to this frame.
-  // This is empty unless this is a scrollable ContainerLayer and the
-  // apz.printtree pref is turned on.
-  std::string mContentDescription;
 #ifdef MOZ_DUMP_PAINTING
   nsTArray<nsCString> mExtraDumpInfo;
 #endif

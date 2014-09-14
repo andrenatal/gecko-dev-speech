@@ -21,6 +21,11 @@
         <item name="android:layout_marginLeft">@dimen/forward_default_offset</item>
     </style>
 
+    <style name="UrlBar.ImageButton.TabCount.NewTablet">
+        <item name="android:background">@drawable/new_tablet_tabs_count</item>
+    </style>
+
+
    <style name="UrlBar.Button.Container">
         <item name="android:layout_marginTop">6dp</item>
         <item name="android:layout_marginBottom">6dp</item>
@@ -78,17 +83,6 @@
 
     <style name="Widget.ReadingListView" parent="Widget.BookmarksListView"/>
 
-    <style name="Widget.Home.HistoryPanelTitle" parent="Widget.Home.HistoryTabIndicator">
-        <item name="android:layout_marginLeft">32dp</item>
-        <item name="android:layout_marginRight">32dp</item>
-    </style>
-
-    <style name="Widget.Home.HistoryListView">
-        <item name="android:paddingLeft">32dp</item>
-        <item name="android:paddingRight">32dp</item>
-        <item name="android:scrollbarStyle">outsideOverlay</item>
-    </style>
-
     <style name="Widget.HomeBanner">
         <item name="android:paddingLeft">32dp</item>
         <item name="android:paddingRight">32dp</item>
@@ -126,7 +120,7 @@
     </style>
 
     <style name="OnboardStartLayout">
-        <item name="android:layout_height">568dp</item>
+        <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">400dp</item>
     </style>
 

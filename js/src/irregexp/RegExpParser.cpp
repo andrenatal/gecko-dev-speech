@@ -76,7 +76,7 @@ RegExpBuilder::FlushText()
 }
 
 void
-RegExpBuilder::AddCharacter(jschar c)
+RegExpBuilder::AddCharacter(char16_t c)
 {
     pending_empty_ = false;
     if (characters_ == nullptr)
@@ -397,7 +397,7 @@ RegExpParser<CharT>::ParseClassCharacterEscape()
     return 0;
 }
 
-static const jschar kNoCharClass = 0;
+static const char16_t kNoCharClass = 0;
 
 // Adds range or pre-defined character class to character ranges.
 // If char_class is not kInvalidClass, it's interpreted as a class
@@ -405,7 +405,7 @@ static const jschar kNoCharClass = 0;
 static inline void
 AddRangeOrEscape(LifoAlloc *alloc,
                  CharacterRangeVector *ranges,
-                 jschar char_class,
+                 char16_t char_class,
                  CharacterRange range)
 {
     if (char_class != kNoCharClass)
@@ -427,7 +427,7 @@ RegExpParser<CharT>::ParseCharacterClass()
     }
     CharacterRangeVector *ranges = alloc->newInfallible<CharacterRangeVector>(*alloc);
     while (has_more() && current() != ']') {
-        jschar char_class = kNoCharClass;
+        char16_t char_class = kNoCharClass;
         CharacterRange first;
         if (!ParseClassAtom(&char_class, &first))
             return nullptr;
@@ -442,7 +442,7 @@ RegExpParser<CharT>::ParseCharacterClass()
                 ranges->append(CharacterRange::Singleton('-'));
                 break;
             }
-            jschar char_class_2 = kNoCharClass;
+            char16_t char_class_2 = kNoCharClass;
             CharacterRange next;
             if (!ParseClassAtom(&char_class_2, &next))
                 return nullptr;
@@ -472,7 +472,7 @@ RegExpParser<CharT>::ParseCharacterClass()
 
 template <typename CharT>
 bool
-RegExpParser<CharT>::ParseClassAtom(jschar* char_class, CharacterRange *char_range)
+RegExpParser<CharT>::ParseClassAtom(char16_t* char_class, CharacterRange *char_range)
 {
     JS_ASSERT(*char_class == kNoCharClass);
     widechar first = current();
@@ -997,13 +997,34 @@ RegExpParser<CharT>::ParseDisjunction()
 }
 
 template class irregexp::RegExpParser<Latin1Char>;
-template class irregexp::RegExpParser<jschar>;
+template class irregexp::RegExpParser<char16_t>;
 
 template <typename CharT>
 static bool
 ParsePattern(frontend::TokenStream &ts, LifoAlloc &alloc, const CharT *chars, size_t length,
-             bool multiline, RegExpCompileData *data)
+             bool multiline, bool match_only, RegExpCompileData *data)
 {
+    if (match_only) {
+        // Try to strip a leading '.*' from the RegExp, but only if it is not
+        // followed by a '?' (which will affect how the .* is parsed). This
+        // pattern will affect the captures produced by the RegExp, but not
+        // whether there is a match or not.
+        if (length >= 3 && chars[0] == '.' && chars[1] == '*' && chars[2] != '?') {
+            chars += 2;
+            length -= 2;
+        }
+
+        // Try to strip a trailing '.*' from the RegExp, which as above will
+        // affect the captures but not whether there is a match. Only do this
+        // when there are no other meta characters in the RegExp, so that we
+        // are sure this will not affect how the RegExp is parsed.
+        if (length >= 3 && !HasRegExpMetaChars(chars, length - 2) &&
+            chars[length - 2] == '.' && chars[length - 1] == '*')
+        {
+            length -= 2;
+        }
+    }
+
     RegExpParser<CharT> parser(ts, &alloc, chars, chars + length, multiline);
     data->tree = parser.ParsePattern();
     if (!data->tree)
@@ -1016,13 +1037,16 @@ ParsePattern(frontend::TokenStream &ts, LifoAlloc &alloc, const CharT *chars, si
 }
 
 bool
-irregexp::ParsePattern(frontend::TokenStream &ts, LifoAlloc &alloc, JSAtom *str, bool multiline,
+irregexp::ParsePattern(frontend::TokenStream &ts, LifoAlloc &alloc, JSAtom *str,
+                       bool multiline, bool match_only,
                        RegExpCompileData *data)
 {
     JS::AutoCheckCannotGC nogc;
     return str->hasLatin1Chars()
-           ? ::ParsePattern(ts, alloc, str->latin1Chars(nogc), str->length(), multiline, data)
-           : ::ParsePattern(ts, alloc, str->twoByteChars(nogc), str->length(), multiline, data);
+           ? ::ParsePattern(ts, alloc, str->latin1Chars(nogc), str->length(),
+                            multiline, match_only, data)
+           : ::ParsePattern(ts, alloc, str->twoByteChars(nogc), str->length(),
+                            multiline, match_only, data);
 }
 
 template <typename CharT>
