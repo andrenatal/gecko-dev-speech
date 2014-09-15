@@ -52,6 +52,8 @@ public:
 
   nsCOMPtr<nsISpeechRecognitionService> mRecognitionService;
 
+  const char * mGram;
+
 private:
   ~SpeechGrammarList();
 
