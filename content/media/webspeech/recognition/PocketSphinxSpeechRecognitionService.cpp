@@ -103,7 +103,6 @@ public:
       }
     }
 
-
     nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(hypoValue , mRecognition );
     return NS_DispatchToMainThread(resultrunnable);
   }
@@ -146,8 +145,9 @@ private:
 
     // FOR B2G PATHS HARDCODED (APPEND /DATA ON THE BEGINING, FOR DESKTOP, ONLY MODELS/ RELATIVE TO ROOT
     mPSConfig = cmd_ln_init(NULL, ps_args(), TRUE,
-               "-hmm", ToNewUTF8String(aStringAMPath)  , // acoustic model
+               "-hmm", ToNewUTF8String(aStringAMPath), // acoustic model
                "-dict",  ToNewUTF8String(aStringDictPath),
+               "-kws_threshold",  "1e-60",               
                NULL);
      if (mPSConfig == NULL) {
        ISDecoderCreated = false;
@@ -177,7 +177,7 @@ private:
   NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::Initialize(WeakPtr<SpeechRecognition> aSpeechRecognition)
   {
-    if (!ISDecoderCreated || !ISGrammarCompiled) {
+    if (!ISDecoderCreated) {
       return NS_ERROR_NOT_INITIALIZED;
     } else {
       mAudioVector.clear();
@@ -186,6 +186,18 @@ private:
         mSpeexState = nullptr;
 
       mRecognition = aSpeechRecognition;
+
+      // if continuous, we start the  ps_start_utt(mPs, "spotting"); and ps_set_keyphrase
+      if (mRecognition->mIsContinuous)
+      {
+        printf("isContinuous == true!!!!! \n");
+        ps_set_keyphrase(mPSHandle, "spotting", "fox");        
+        ps_set_keyphrase(mPSHandle, "spotting", "fire");                
+        ps_set_search(mPSHandle, "spotting");                
+        ps_start_utt(mPSHandle, "spotting");
+      }
+
+
       nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
       obs->AddObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC, false);
       obs->AddObserver(this, SPEECH_RECOGNITION_TEST_END_TOPIC, false);
@@ -218,10 +230,60 @@ private:
   }
 
   NS_IMETHODIMP
+  PocketSphinxSpeechRecognitionService::DecodeInterim()
+  {
+    char const *hyp, *uttid;
+    int rv;
+    int32 score;
+    nsString hypoValue;
+    
+    rv = ps_process_raw(mPSHandle, &mAudioVector[0], mAudioVector.size(), FALSE, FALSE);
+
+    mAudioVector.clear();
+    
+    if (rv >= 0) {
+      hyp = ps_get_hyp(mPSHandle, &score, &uttid);
+      if (hyp != NULL) {
+        
+
+        if  ( (strcmp(hyp,"fox") == 0) || (strcmp(hyp,"fire") == 0)  )
+        {
+          ps_end_utt(mPSHandle);  
+
+          mRecognition->Stop();
+
+          nsRefPtr<SpeechEvent> event = new SpeechEvent(mRecognition, SpeechRecognition::EVENT_RECOGNITIONSERVICE_FINAL_RESULT);
+          SpeechRecognitionResultList* resultList = new SpeechRecognitionResultList(mRecognition);
+          SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);
+          SpeechRecognitionAlternative* alternative = new SpeechRecognitionAlternative(mRecognition);
+
+          nsString mResult;
+          mResult.AssignASCII(hyp);
+          alternative->mTranscript = mResult;
+          alternative->mConfidence = 100;
+
+          result->mItems.AppendElement(alternative);
+          resultList->mItems.AppendElement(result);
+
+          event->mRecognitionResultList = resultList;
+          NS_DispatchToMainThread(event);
+
+        }        
+      }
+    }
+
+
+    return NS_OK;
+  }
+
+  NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::SoundEnd()
   {
+    printf("SOUNDEND THAT WE SHOLD NOT HIT");
     speex_resampler_destroy(mSpeexState);
     mSpeexState= nullptr;
+
+    // se for continuo, chama o ps_end_utt(mPSHandle); se nao tiver parado antes
 
     // To create a new thread, get the thread manager
     nsCOMPtr<nsIThreadManager> tm = do_GetService(NS_THREADMANAGER_CONTRACTID);

@@ -37,7 +37,7 @@ public:
 
 private:
   virtual ~PocketSphinxSpeechRecognitionService();
-
+  bool IslastWasWS; 
   WeakPtr<dom::SpeechRecognition> mRecognition;
   dom::SpeechRecognitionResultList* BuildMockResultList();
   SpeexResamplerState *mSpeexState;

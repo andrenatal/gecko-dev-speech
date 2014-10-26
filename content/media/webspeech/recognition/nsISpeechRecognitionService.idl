@@ -35,6 +35,7 @@ interface nsISpeechRecognitionService : nsISupports {
     void initialize(in SpeechRecognitionWeakPtr aSpeechRecognition);
     void processAudioSegment(in AudioSegmentPtr aAudioSegment, in long aSampleRate);
     void validateAndSetGrammarList(in SpeechGrammarPtr aSpeechGrammar, in nsISpeechGrammarCompilationCallback aCallback);
+    void decodeInterim();
     void soundEnd();
     void abort();
 };

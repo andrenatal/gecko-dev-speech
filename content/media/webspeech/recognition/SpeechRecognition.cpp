@@ -459,7 +459,14 @@ SpeechRecognition::WaitForSpeechEnd(SpeechEvent* aEvent)
     if (mCurrentState == STATE_RECOGNIZING) {
       // FIXME: StopRecordingAndRecognize should only be called for single
       // shot services for continuous we should just inform the service
-      StopRecordingAndRecognize(aEvent);
+      if (!mIsContinuous)
+      {
+        StopRecordingAndRecognize(aEvent);
+      }
+      else
+      {
+        mRecognitionService->DecodeInterim();
+      }
     }
   }
 }
@@ -483,6 +490,7 @@ SpeechRecognition::NotifyFinalResult(SpeechEvent* aEvent)
 
   bool defaultActionEnabled;
   this->DispatchEvent(event, &defaultActionEnabled);
+
 }
 
 void
@@ -549,9 +557,12 @@ SpeechRecognition::StopRecording()
   // as our JS code still holds a reference to mDOMStream and only assigning
   // it to nullptr isn't guaranteed to free the stream and the listener.
   mDOMStream->GetStream()->RemoveListener(mSpeechListener);
-  mSpeechListener = nullptr;
-  mDOMStream = nullptr;
 
+  if (!mIsContinuous)
+  {
+    mSpeechListener = nullptr;    
+    mDOMStream = nullptr;
+  }
   mEndpointer.EndSession();
   DispatchTrustedEvent(NS_LITERAL_STRING("audioend"));
 
@@ -633,14 +644,15 @@ SpeechRecognition::SetLang(const nsAString& aArg, ErrorResult& aRv)
 bool
 SpeechRecognition::GetContinuous(ErrorResult& aRv) const
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  return false;
+  printf("GetContinuous \n");
+  return mIsContinuous;
 }
 
 void
 SpeechRecognition::SetContinuous(bool aArg, ErrorResult& aRv)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  printf("SetContinuous \n");
+  mIsContinuous = aArg;
   return;
 }
 
