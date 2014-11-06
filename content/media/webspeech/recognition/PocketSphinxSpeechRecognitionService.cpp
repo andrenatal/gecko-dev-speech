@@ -301,6 +301,19 @@ private:
   }
 
   NS_IMETHODIMP
+  PocketSphinxSpeechRecognitionService::SwitchContinuous(bool switchOn)
+  {
+    if (switchOn){
+      printf("turn continuous on"); 
+    }
+    else {
+      printf("turn continuous off");
+    }
+
+    return NS_OK;
+  }
+
+  NS_IMETHODIMP
   PocketSphinxSpeechRecognitionService::ValidateAndSetGrammarList(SpeechGrammar *aSpeechGrammar, nsISpeechGrammarCompilationCallback* aCallback)
   {
     if (!ISDecoderCreated) {

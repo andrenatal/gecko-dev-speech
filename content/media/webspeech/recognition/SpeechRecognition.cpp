@@ -644,7 +644,6 @@ SpeechRecognition::SetLang(const nsAString& aArg, ErrorResult& aRv)
 bool
 SpeechRecognition::GetContinuous(ErrorResult& aRv) const
 {
-  printf("GetContinuous \n");
   return mIsContinuous;
 }
 
@@ -653,6 +652,7 @@ SpeechRecognition::SetContinuous(bool aArg, ErrorResult& aRv)
 {
   printf("SetContinuous \n");
   mIsContinuous = aArg;
+  mRecognitionService->SwitchContinuous(mIsContinuous);  
   return;
 }
 

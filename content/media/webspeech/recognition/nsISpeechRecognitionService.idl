@@ -38,6 +38,7 @@ interface nsISpeechRecognitionService : nsISupports {
     void decodeInterim();
     void soundEnd();
     void abort();
+    void switchContinuous(in bool switchOn);
 };
 
 %{C++

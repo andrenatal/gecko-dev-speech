@@ -70,6 +70,12 @@ FakeSpeechRecognitionService::DecodeInterim()
 }
 
 NS_IMETHODIMP
+FakeSpeechRecognitionService::SwitchContinuous(bool switchOn)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 FakeSpeechRecognitionService::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
 {
   MOZ_ASSERT(mRecognition->mTestConfig.mFakeRecognitionService,
