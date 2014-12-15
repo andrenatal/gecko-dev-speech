@@ -1,14 +1,23 @@
 MODELSPS_KEEP_PATH := 1
 
 MODELSPS_FILES := dict/cmu07a.dic \
+		dict/cmu07a_zh.dic \
 		en-us-semi/feat.params \
 		en-us-semi/mdef \
 		en-us-semi/means \
 		en-us-semi/noisedict \
 		en-us-semi/sendump \
 		en-us-semi/transition_matrices \
-		en-us-semi/variances 
-		
+		en-us-semi/variances \
+		zh_broadcastnews_ptm256_8000/feat.params \
+		zh_broadcastnews_ptm256_8000/mdef \
+		zh_broadcastnews_ptm256_8000/means \
+		zh_broadcastnews_ptm256_8000/mixture_weights \
+		zh_broadcastnews_ptm256_8000/noisedict \
+		zh_broadcastnews_ptm256_8000/sendump \
+		zh_broadcastnews_ptm256_8000/transition_matrices \
+		zh_broadcastnews_ptm256_8000/variances
+
 MODELSPS_DEST := $(DIST)/bin/models
 INSTALL_TARGETS += MODELSPS
 

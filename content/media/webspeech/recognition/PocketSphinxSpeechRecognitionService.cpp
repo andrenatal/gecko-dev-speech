@@ -88,7 +88,7 @@ public:
     char const *hyp, *uttid;
     int rv;
     int32 score;
-    nsString hypoValue;
+    nsCString hypoValue;
 
     rv = ps_start_utt(mPs, "goforward");
     rv = ps_process_raw(mPs, &mAudiovector[0], mAudiovector.size(), FALSE, FALSE);
@@ -97,14 +97,14 @@ public:
     if (rv >= 0) {
       hyp = ps_get_hyp(mPs, &score, &uttid);
       if (hyp == NULL) {
-        hypoValue.AssignASCII("ERROR");
+        hypoValue.Assign("ERROR");
       } else {
-        hypoValue.AssignASCII(hyp);
+        hypoValue.Assign(hyp);
       }
     }
 
 
-    nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(hypoValue , mRecognition );
+    nsCOMPtr<nsIRunnable> resultrunnable = new DecodeResultTask(NS_ConvertUTF8toUTF16(hypoValue) , mRecognition );
     return NS_DispatchToMainThread(resultrunnable);
   }
 
@@ -131,7 +131,8 @@ private:
     tmpFile->AppendRelativePath(NS_LITERAL_STRING("..") );
     #endif
     tmpFile->AppendRelativePath(NS_LITERAL_STRING("models") );
-    tmpFile->AppendRelativePath(NS_LITERAL_STRING("en-us-semi") );
+    //tmpFile->AppendRelativePath(NS_LITERAL_STRING("en-us-semi") );
+    tmpFile->AppendRelativePath(NS_LITERAL_STRING("zh_broadcastnews_ptm256_8000") );
     tmpFile->GetPath(aStringAMPath);
 
     NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
@@ -140,7 +141,8 @@ private:
     #endif
     tmpFile->AppendRelativePath(NS_LITERAL_STRING( "models") ); //
     tmpFile->AppendRelativePath(NS_LITERAL_STRING( "dict") ); //
-    tmpFile->AppendRelativePath(NS_LITERAL_STRING( "cmu07a.dic") ); //
+//    tmpFile->AppendRelativePath(NS_LITERAL_STRING( "cmu07a.dic") ); //
+    tmpFile->AppendRelativePath(NS_LITERAL_STRING( "cmu07a_zh.dic") ); //    
     tmpFile->GetPath(aStringDictPath);
 
 
@@ -249,7 +251,9 @@ private:
        ErrorResult rv;
        aSpeechGrammar->GetSrc(grammar, rv);
 
-       int result = ps_set_jsgf_string(mPSHandle, "name" , ToNewUTF8String(grammar));
+       NS_ConvertUTF16toUTF8 utf8Str(grammar);
+       const nsACString& utf8AStr = utf8Str;
+       int result = ps_set_jsgf_string(mPSHandle, "name" , PromiseFlatCString(utf8AStr).get());
        ps_set_search(mPSHandle, "name");
 
        if (result != 0) {

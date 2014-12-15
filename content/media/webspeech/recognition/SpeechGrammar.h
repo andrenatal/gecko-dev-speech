@@ -55,7 +55,7 @@ private:
 
   nsCOMPtr<nsISupports> mParent;
 
-  char * mGram;
+  nsString mGram;
 };
 
 } // namespace dom

@@ -42,7 +42,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <assert.h>
 #include <stdarg.h>
 
@@ -57,6 +56,14 @@ atof_c(char const *str)
 {
     return sb_strtod(str, NULL);
 }
+
+/* Locale-independent isspace to avoid different incompatibilities */
+static int isspace_c(char ch)
+{
+    if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') return 1;
+    return 0;
+}
+
 
 char *
 string_join(const char *base, ...)
@@ -120,7 +127,7 @@ str2words(char *line, char **ptr, int32 max_ptr)
     i = 0;                      /* For scanning through the input string */
     while (1) {
         /* Skip whitespace before next word */
-        while (line[i] && isspace((unsigned char)line[i]))
+        while (line[i] && isspace_c(line[i]))
             ++i;
         if (!line[i])
             break;
@@ -141,7 +148,7 @@ str2words(char *line, char **ptr, int32 max_ptr)
         if (ptr != NULL)
             ptr[n] = line + i;
         ++n;
-        while (line[i] && !isspace((unsigned char)line[i]))
+        while (line[i] && !isspace_c(line[i]))
             ++i;
         if (!line[i])
             break;
